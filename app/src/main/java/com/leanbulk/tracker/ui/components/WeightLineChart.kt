@@ -240,8 +240,8 @@ fun WeightTrajectoryChart(
                 val canvasHeight = size.height
 
                 // Reserve padding for Y and X axis labels
-                val leftPad = 80f
-                val rightPad = if (viewMode == TrajectoryViewMode.WEIGHT_ONLY) 30f else 80f
+                val leftPad = 92f
+                val rightPad = if (viewMode == TrajectoryViewMode.WEIGHT_ONLY) 30f else 92f
                 val topPad = 36f
                 val bottomPad = 48f
 
@@ -278,14 +278,14 @@ fun WeightTrajectoryChart(
 
                 val weightAxisPaint = android.graphics.Paint().apply {
                     color = android.graphics.Color.argb(230, 0, 229, 255)
-                    textSize = 24f
+                    textSize = 20f
                     isFakeBoldText = true
                     isAntiAlias = true
                 }
 
                 val waistAxisPaint = android.graphics.Paint().apply {
                     color = android.graphics.Color.argb(230, 255, 179, 0)
-                    textSize = 24f
+                    textSize = 20f
                     isFakeBoldText = true
                     isAntiAlias = true
                     textAlign = android.graphics.Paint.Align.RIGHT
@@ -293,7 +293,7 @@ fun WeightTrajectoryChart(
 
                 val targetGoalPaint = android.graphics.Paint().apply {
                     color = android.graphics.Color.argb(230, 118, 255, 3)
-                    textSize = 24f
+                    textSize = 20f
                     isFakeBoldText = true
                     isAntiAlias = true
                 }

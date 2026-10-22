@@ -2,6 +2,7 @@ package com.leanbulk.tracker.ui.meals
 
 import android.Manifest
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -44,11 +45,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.leanbulk.tracker.data.model.MealDataSource
 import com.leanbulk.tracker.data.model.MealItem
 import com.leanbulk.tracker.ui.components.LiveHealthSyncCard
 import com.leanbulk.tracker.ui.components.NutritionSummaryCard
@@ -67,6 +71,7 @@ import com.leanbulk.tracker.ui.theme.TextSecondary
 fun MealsScreen(
     viewModel: MealsViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
 
     val stepPermissionLauncher = rememberLauncherForActivityResult(
@@ -105,32 +110,69 @@ fun MealsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "South Indian Bulk Fuel",
-                        style = MaterialTheme.typography.headlineMedium.copy(
+                        style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
-                        )
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "2,420 kcal Lean Hypertrophy Menu",
-                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Button(
-                    onClick = { viewModel.openAddDialog() },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AmberGold,
-                        contentColor = DarkBackground
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Extra Rice", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+                    // 1-Tap Quick Extra Rice Button
+                    Button(
+                        onClick = {
+                            viewModel.addPresetMeal(
+                                MealDataSource.QuickPreset(
+                                    label = "+0.5 Cup Steamed Rice",
+                                    calories = 150,
+                                    protein = 3,
+                                    carbs = 34,
+                                    fat = 0
+                                )
+                            )
+                            Toast.makeText(context, "Added +0.5 Cup Steamed Rice (+150 kcal)", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AmberGold,
+                            contentColor = DarkBackground
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Extra Rice", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1)
+                    }
+
+                    // Open Presets & Custom Meal Dialog
+                    Button(
+                        onClick = { viewModel.openAddDialog() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DarkSurfaceElevated,
+                            contentColor = ElectricCyan
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Text("+ More", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1)
+                    }
                 }
             }
         }

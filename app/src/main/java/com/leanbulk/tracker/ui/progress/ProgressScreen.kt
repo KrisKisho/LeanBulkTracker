@@ -201,12 +201,41 @@ fun ProgressScreen(
             }
         }
 
-        items(state.entries.sortedByDescending { it.date }, key = { it.id }) { entry ->
-            WeightHistoryItem(
-                entry = entry,
-                startWeight = state.userProfile.startWeightKg,
-                onDelete = { viewModel.deleteEntry(entry.id) }
-            )
+        if (state.entries.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkSurfaceElevated.copy(alpha = 0.6f))
+                        .border(1.dp, DarkSurfaceBorder, RoundedCornerShape(12.dp))
+                        .padding(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "No check-in entries yet",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Tap \"+ Log\" at the top to record your weight & waist",
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                        )
+                    }
+                }
+            }
+        } else {
+            items(state.entries.sortedByDescending { it.date }, key = { it.id }) { entry ->
+                WeightHistoryItem(
+                    entry = entry,
+                    startWeight = state.userProfile.startWeightKg,
+                    onDelete = { viewModel.deleteEntry(entry.id) }
+                )
+            }
         }
 
         item {

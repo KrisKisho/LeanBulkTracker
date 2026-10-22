@@ -51,9 +51,9 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 profileRepository.ensureDefaultProfileSeeded()
-                weightRepository.seedInitialBaselineIfEmpty()
+                weightRepository.removeSampleData()
             } catch (e: Exception) {
-                Log.e("ProgressViewModel", "Error seeding baseline data", e)
+                Log.e("ProgressViewModel", "Error initializing progress data", e)
             }
         }
     }

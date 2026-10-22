@@ -41,28 +41,7 @@ class WeightRepository(
         weightDao.deleteWeightLog(id)
     }
 
-    suspend fun seedInitialBaselineIfEmpty() {
-        val baseDate = LocalDate.now().minusDays(14)
-        val existing = weightDao.getWeightLogByDate(baseDate.toString())
-        if (existing == null) {
-            val entity1 = WeightProgressEntity(
-                date = baseDate.toString(),
-                id = baseDate.toString(),
-                weightKg = 60.0f,
-                waistInches = 29.5f,
-                notes = "Starting Baseline (60.0 kg, Wrist 6.1\")"
-            )
-            weightDao.upsertWeightLog(entity1)
-
-            val weekDate = LocalDate.now().minusDays(7)
-            val entity2 = WeightProgressEntity(
-                date = weekDate.toString(),
-                id = weekDate.toString(),
-                weightKg = 60.3f,
-                waistInches = 29.5f,
-                notes = "Week 1 Check-in (+0.30 kg optimal gain)"
-            )
-            weightDao.upsertWeightLog(entity2)
-        }
+    suspend fun removeSampleData() {
+        weightDao.deleteSampleWeightLogs()
     }
 }

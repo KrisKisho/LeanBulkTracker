@@ -47,6 +47,7 @@ fun BodyDimensionForecastCard(
     modifier: Modifier = Modifier
 ) {
     val dateFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy")
+    val goalLabel = if (forecast.goalWeightKg % 1f == 0f) "${forecast.goalWeightKg.toInt()}kg" else "%.1fkg".format(forecast.goalWeightKg)
 
     Box(
         modifier = modifier
@@ -242,8 +243,8 @@ fun BodyDimensionForecastCard(
                     Text("Safe Waist Ceiling", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontSize = 10.sp, maxLines = 1)
                     Text("%.1f\" (Hard: %.1f\")".format(forecast.maxHealthyWaistInches, forecast.hardLimitWaistInches), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = AmberGold), maxLines = 1)
                 }
-                Column(modifier = Modifier.weight(1.0f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Projected at 70kg", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontSize = 10.sp, maxLines = 1)
+                Column(modifier = Modifier.weight(1.1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Projected at $goalLabel", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontSize = 9.5.sp, maxLines = 1)
                     Text("%.1f\"".format(forecast.projectedWaistInches), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = ElectricCyan), maxLines = 1)
                 }
                 Column(modifier = Modifier.weight(0.9f), horizontalAlignment = Alignment.End) {
@@ -277,7 +278,7 @@ fun BodyDimensionForecastCard(
             ) {
                 Text("Part", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1.4f))
                 Text("Now", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontWeight = FontWeight.Bold), modifier = Modifier.weight(0.85f))
-                Text("At 70kg", style = MaterialTheme.typography.labelSmall.copy(color = ElectricCyan, fontWeight = FontWeight.Bold), modifier = Modifier.weight(0.95f))
+                Text("At $goalLabel", style = MaterialTheme.typography.labelSmall.copy(color = ElectricCyan, fontWeight = FontWeight.Bold), modifier = Modifier.weight(0.95f))
                 Text("Ideal", style = MaterialTheme.typography.labelSmall.copy(color = AmberGold, fontWeight = FontWeight.Bold), modifier = Modifier.weight(0.85f))
                 Text("Status", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1.35f))
             }

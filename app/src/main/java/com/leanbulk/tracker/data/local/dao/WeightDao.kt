@@ -26,4 +26,10 @@ interface WeightDao {
 
     @Query("DELETE FROM weight_progress WHERE id = :id")
     suspend fun deleteWeightLog(id: String)
+
+    @Query("DELETE FROM weight_progress WHERE notes LIKE '%Starting Baseline%' OR notes LIKE '%Week 1 Check-in%' OR notes LIKE '%Sample%'")
+    suspend fun deleteSampleWeightLogs(): Int
+
+    @Query("DELETE FROM weight_progress")
+    suspend fun deleteAllWeightLogs()
 }

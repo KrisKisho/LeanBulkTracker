@@ -6,8 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,7 +54,6 @@ import com.leanbulk.tracker.ui.theme.TextMuted
 import com.leanbulk.tracker.ui.theme.TextPrimary
 import com.leanbulk.tracker.ui.theme.TextSecondary
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AddCustomMealDialog(
     onDismiss: () -> Unit,
@@ -113,38 +110,50 @@ fun AddCustomMealDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    MealDataSource.quickAddPresets.forEach { preset ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(DarkBackground)
-                                .border(1.dp, DarkSurfaceBorder, RoundedCornerShape(10.dp))
-                                .clickable {
-                                    onAddPreset(preset)
-                                    onDismiss()
-                                }
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                    MealDataSource.quickAddPresets.chunked(2).forEach { rowPresets ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column {
-                                Text(
-                                    text = preset.label,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
-                                )
-                                Text(
-                                    text = "+${preset.calories} kcal | ${preset.protein}g P",
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 11.sp,
-                                        color = NeonLime
-                                    )
-                                )
+                            rowPresets.forEach { preset ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(DarkBackground)
+                                        .border(1.dp, DarkSurfaceBorder, RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            onAddPreset(preset)
+                                            onDismiss()
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = preset.label,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextPrimary
+                                            ),
+                                            maxLines = 1
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "+${preset.calories} kcal | ${preset.protein}g P",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontSize = 11.sp,
+                                                color = NeonLime
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                            if (rowPresets.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
