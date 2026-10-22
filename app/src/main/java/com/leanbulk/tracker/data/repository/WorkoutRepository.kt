@@ -21,7 +21,16 @@ class WorkoutRepository(
             val logMap = logs.associateBy { it.segmentId }
             val updatedSegments = basePlan.segments.map { segment ->
                 val log = logMap[segment.id]
-                segment.copy(isCompleted = log?.isCompleted ?: false)
+                val last3 = workoutDao.getLastThreeLogsForSegment(segment.id)
+                val isOverload = last3.size >= 3 && last3.all { it.effortRating.equals("Easy", ignoreCase = true) }
+
+                segment.copy(
+                    isCompleted = log?.isCompleted ?: false,
+                    weightUsedKg = log?.weightUsedKg ?: 4.0f,
+                    repsPerSet = log?.repsPerSet ?: 12,
+                    effortRating = log?.effortRating ?: "Good Burn",
+                    isOverloadReady = isOverload
+                )
             }
             basePlan.copy(segments = updatedSegments)
         }
@@ -31,13 +40,36 @@ class WorkoutRepository(
         val dateStr = date.toString()
         val rows = workoutDao.updateSegmentCompletion(dateStr, segment.id, isCompleted)
         if (rows == 0) {
+            val lastSession = workoutDao.getLastCompletedLogForSegment(segment.id)
             val entity = DailyWorkoutLogEntity(
                 date = dateStr,
                 segmentId = segment.id,
                 id = "${dateStr}_${segment.id}",
                 dayOfWeek = segment.dayOfWeek.name,
                 isCompleted = isCompleted,
-                completedAtMillis = System.currentTimeMillis()
+                completedAtMillis = System.currentTimeMillis(),
+                weightUsedKg = lastSession?.weightUsedKg ?: segment.weightUsedKg,
+                repsPerSet = lastSession?.repsPerSet ?: segment.repsPerSet,
+                effortRating = lastSession?.effortRating ?: segment.effortRating
+            )
+            workoutDao.upsertWorkoutLog(entity)
+        }
+    }
+
+    suspend fun updateOverloadData(date: LocalDate, segmentId: String, weightKg: Float, reps: Int, effortRating: String) {
+        val dateStr = date.toString()
+        val rows = workoutDao.updateOverload(dateStr, segmentId, weightKg, reps, effortRating)
+        if (rows == 0) {
+            val entity = DailyWorkoutLogEntity(
+                date = dateStr,
+                segmentId = segmentId,
+                id = "${dateStr}_${segmentId}",
+                dayOfWeek = date.dayOfWeek.name,
+                isCompleted = true,
+                completedAtMillis = System.currentTimeMillis(),
+                weightUsedKg = weightKg,
+                repsPerSet = reps,
+                effortRating = effortRating
             )
             workoutDao.upsertWorkoutLog(entity)
         }

@@ -6,12 +6,15 @@ import kotlin.math.pow
 data class DimensionComparison(
     val partName: String,
     val currentInches: Float,
+    val startInches: Float = currentInches,
     val projectedInches: Float,
     val idealInches: Float,
     val statusText: String,
     val isWaist: Boolean = false,
     val isWarning: Boolean = false
-)
+) {
+    val deltaInches: Float get() = currentInches - startInches
+}
 
 data class BodyForecastResult(
     val startWeightKg: Float,
@@ -85,6 +88,7 @@ object BodyDimensionCalculator {
             DimensionComparison(
                 partName = "Chest",
                 currentInches = profile.currentChestInches,
+                startInches = profile.startChestInches,
                 projectedInches = projChest,
                 idealInches = idealChest,
                 statusText = if (projChest >= idealChest * 0.96f) "On Track" else "Room to Grow"
@@ -92,6 +96,7 @@ object BodyDimensionCalculator {
             DimensionComparison(
                 partName = "Flexed Arm",
                 currentInches = profile.currentArmInches,
+                startInches = profile.startArmInches,
                 projectedInches = projArm,
                 idealInches = idealArm,
                 statusText = if (projArm >= idealArm * 0.95f) "On Track" else "Room to Grow"
@@ -99,6 +104,7 @@ object BodyDimensionCalculator {
             DimensionComparison(
                 partName = "Forearm",
                 currentInches = profile.currentForearmInches,
+                startInches = profile.startForearmInches,
                 projectedInches = projForearm,
                 idealInches = idealForearm,
                 statusText = if (projForearm >= idealForearm * 0.95f) "On Track" else "Room to Grow"
@@ -106,6 +112,7 @@ object BodyDimensionCalculator {
             DimensionComparison(
                 partName = "Neck",
                 currentInches = profile.currentNeckInches,
+                startInches = profile.startNeckInches,
                 projectedInches = projNeck,
                 idealInches = idealNeck,
                 statusText = if (projNeck >= idealNeck * 0.95f) "On Track" else "Room to Grow"
@@ -113,6 +120,7 @@ object BodyDimensionCalculator {
             DimensionComparison(
                 partName = "Thigh",
                 currentInches = profile.currentThighInches,
+                startInches = profile.startThighInches,
                 projectedInches = projThigh,
                 idealInches = idealThigh,
                 statusText = if (projThigh >= idealThigh * 0.95f) "On Track" else "Room to Grow"
@@ -120,6 +128,7 @@ object BodyDimensionCalculator {
             DimensionComparison(
                 partName = "Calf",
                 currentInches = profile.currentCalfInches,
+                startInches = profile.startCalfInches,
                 projectedInches = projCalf,
                 idealInches = idealCalf,
                 statusText = if (projCalf >= idealCalf * 0.95f) "On Track" else "Room to Grow"
@@ -127,6 +136,7 @@ object BodyDimensionCalculator {
             DimensionComparison(
                 partName = "Navel Waist",
                 currentInches = profile.currentWaistInches,
+                startInches = profile.startWaistInches,
                 projectedInches = projectedWaist,
                 idealInches = maxHealthyWaist,
                 statusText = if (profile.currentWaistInches > maxHealthyWaist) "Waist Warning" else "Safe Ceiling",

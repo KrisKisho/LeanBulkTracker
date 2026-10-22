@@ -14,6 +14,7 @@ import com.leanbulk.tracker.data.model.MealItem
 import com.leanbulk.tracker.data.model.SouthIndianTopUp
 import com.leanbulk.tracker.data.model.UserProfile
 import com.leanbulk.tracker.data.model.WorkoutDataSource
+import com.leanbulk.tracker.data.repository.HabitRepository
 import com.leanbulk.tracker.data.repository.MealRepository
 import com.leanbulk.tracker.data.repository.UserProfileRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,7 +34,9 @@ data class MealsUiState(
     val userProfile: UserProfile = UserProfile(),
     val syncData: HealthSyncData = HealthSyncData(),
     val nutritionTarget: DynamicNutritionTarget = DynamicNutritionEngine.calculate(UserProfile(), 4500, 135),
-    val showAddDialog: Boolean = false
+    val showAddDialog: Boolean = false,
+    val waterGlasses: Int = 0,
+    val sleepHours: Float = 0.0f
 ) {
     val targetCalories: Int
         get() = nutritionTarget.dynamicCalorieTarget
@@ -66,6 +69,7 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getInstance(application)
     private val mealRepository = MealRepository(db.mealDao())
     private val profileRepository = UserProfileRepository(db.userProfileDao())
+    private val habitRepository = HabitRepository(db.habitDao())
     private val healthSyncManager = HealthSyncManager(application)
     private val workoutDao = db.workoutDao()
 
@@ -93,8 +97,9 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
     }.flatMapLatest { meta ->
         combine(
             mealRepository.getMealsForDate(meta.date),
-            workoutDao.getWorkoutLogsForDate(meta.date.toString())
-        ) { meals, workoutLogs ->
+            workoutDao.getWorkoutLogsForDate(meta.date.toString()),
+            habitRepository.getTodayHabit(meta.date)
+        ) { meals, workoutLogs, habitLog ->
             val dayPlan = WorkoutDataSource.getWeeklyPlans()[meta.date.dayOfWeek]
             val totalSegments = dayPlan?.segments?.size ?: 5
             val completedSegments = workoutLogs.count { it.isCompleted }
@@ -116,7 +121,9 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
                 userProfile = meta.profile,
                 syncData = meta.syncData,
                 nutritionTarget = nutritionTarget,
-                showAddDialog = meta.showDialog
+                showAddDialog = meta.showDialog,
+                waterGlasses = habitLog?.waterGlasses ?: 0,
+                sleepHours = habitLog?.sleepHours ?: 0.0f
             )
         }
     }.stateIn(
@@ -176,6 +183,7 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 mealRepository.toggleMealChecked(_selectedDate.value, meal, isChecked)
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error toggling meal checked", e)
             }
@@ -186,6 +194,7 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 mealRepository.toggleVegOption(_selectedDate.value, meal, isVeg)
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error toggling veg option", e)
             }
@@ -211,6 +220,7 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
                     carbs = preset.carbs,
                     fat = preset.fat
                 )
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error adding preset meal", e)
             }
@@ -228,6 +238,7 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
                     carbs = carbs,
                     fat = fat
                 )
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error adding custom meal", e)
             }
@@ -238,8 +249,39 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 mealRepository.deleteCustomMeal(_selectedDate.value, mealId)
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error deleting custom meal", e)
+            }
+        }
+    }
+
+    fun incrementWater() {
+        viewModelScope.launch {
+            try {
+                habitRepository.incrementWater(_selectedDate.value)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error incrementing water", e)
+            }
+        }
+    }
+
+    fun decrementWater() {
+        viewModelScope.launch {
+            try {
+                habitRepository.decrementWater(_selectedDate.value)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error decrementing water", e)
+            }
+        }
+    }
+
+    fun updateSleep(hours: Float) {
+        viewModelScope.launch {
+            try {
+                habitRepository.updateSleep(hours, _selectedDate.value)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error updating sleep", e)
             }
         }
     }

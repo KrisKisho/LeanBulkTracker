@@ -56,6 +56,7 @@ import com.leanbulk.tracker.data.model.MealDataSource
 import com.leanbulk.tracker.data.model.MealItem
 import com.leanbulk.tracker.ui.components.LiveHealthSyncCard
 import com.leanbulk.tracker.ui.components.NutritionSummaryCard
+import com.leanbulk.tracker.ui.components.RecoveryHydrationCard
 import com.leanbulk.tracker.ui.theme.AmberGold
 import com.leanbulk.tracker.ui.theme.CoralRed
 import com.leanbulk.tracker.ui.theme.DarkBackground
@@ -209,6 +210,17 @@ fun MealsScreen(
                 targetCarbs = state.targetCarbs,
                 currentFat = state.consumedFat,
                 targetFat = state.targetFat
+            )
+        }
+
+        item {
+            // Compact Recovery & Hydration Card (Water & Sleep Trackers)
+            RecoveryHydrationCard(
+                waterGlasses = state.waterGlasses,
+                sleepHours = state.sleepHours,
+                onIncrementWater = { viewModel.incrementWater() },
+                onDecrementWater = { viewModel.decrementWater() },
+                onUpdateSleep = { hours -> viewModel.updateSleep(hours) }
             )
         }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.leanbulk.tracker.data.local.AppDatabase
+import com.leanbulk.tracker.data.local.entity.DailyHabitLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyMealLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyWorkoutLogEntity
 import com.leanbulk.tracker.data.local.entity.ReminderEntity
@@ -28,7 +29,8 @@ data class BackupSummary(
     val weightLogsCount: Int = 0,
     val mealLogsCount: Int = 0,
     val workoutLogsCount: Int = 0,
-    val remindersCount: Int = 0
+    val remindersCount: Int = 0,
+    val habitsCount: Int = 0
 )
 
 class DataBackupManager(private val database: AppDatabase) {
@@ -61,6 +63,13 @@ class DataBackupManager(private val database: AppDatabase) {
                 put("currentNeckInches", profile.currentNeckInches.toDouble())
                 put("currentThighInches", profile.currentThighInches.toDouble())
                 put("currentCalfInches", profile.currentCalfInches.toDouble())
+                put("startWaistInches", profile.startWaistInches.toDouble())
+                put("startChestInches", profile.startChestInches.toDouble())
+                put("startArmInches", profile.startArmInches.toDouble())
+                put("startForearmInches", profile.startForearmInches.toDouble())
+                put("startNeckInches", profile.startNeckInches.toDouble())
+                put("startThighInches", profile.startThighInches.toDouble())
+                put("startCalfInches", profile.startCalfInches.toDouble())
             }
             root.put("userProfile", pObj)
         }
@@ -113,6 +122,9 @@ class DataBackupManager(private val database: AppDatabase) {
                 put("dayOfWeek", wo.dayOfWeek)
                 put("isCompleted", wo.isCompleted)
                 put("completedAtMillis", wo.completedAtMillis)
+                put("weightUsedKg", wo.weightUsedKg.toDouble())
+                put("repsPerSet", wo.repsPerSet)
+                put("effortRating", wo.effortRating)
             }
             workoutArr.put(woObj)
         }
@@ -135,6 +147,19 @@ class DataBackupManager(private val database: AppDatabase) {
             reminderArr.put(rObj)
         }
         root.put("reminders", reminderArr)
+
+        // 6. Daily Habit Logs (Hydration & Sleep)
+        val habitLogs = database.habitDao().getAllHabitLogsSync()
+        val habitArr = JSONArray()
+        habitLogs.forEach { h ->
+            val hObj = JSONObject().apply {
+                put("date", h.date)
+                put("waterGlasses", h.waterGlasses)
+                put("sleepHours", h.sleepHours.toDouble())
+            }
+            habitArr.put(hObj)
+        }
+        root.put("habitLogs", habitArr)
 
         root.toString(2)
     }
@@ -193,7 +218,14 @@ class DataBackupManager(private val database: AppDatabase) {
                     currentForearmInches = pObj.optDouble("currentForearmInches", 10.2).toFloat(),
                     currentNeckInches = pObj.optDouble("currentNeckInches", 13.8).toFloat(),
                     currentThighInches = pObj.optDouble("currentThighInches", 19.5).toFloat(),
-                    currentCalfInches = pObj.optDouble("currentCalfInches", 13.0).toFloat()
+                    currentCalfInches = pObj.optDouble("currentCalfInches", 13.0).toFloat(),
+                    startWaistInches = pObj.optDouble("startWaistInches", pObj.optDouble("currentWaistInches", 30.0)).toFloat(),
+                    startChestInches = pObj.optDouble("startChestInches", pObj.optDouble("currentChestInches", 35.5)).toFloat(),
+                    startArmInches = pObj.optDouble("startArmInches", pObj.optDouble("currentArmInches", 12.0)).toFloat(),
+                    startForearmInches = pObj.optDouble("startForearmInches", pObj.optDouble("currentForearmInches", 10.2)).toFloat(),
+                    startNeckInches = pObj.optDouble("startNeckInches", pObj.optDouble("currentNeckInches", 13.8)).toFloat(),
+                    startThighInches = pObj.optDouble("startThighInches", pObj.optDouble("currentThighInches", 19.5)).toFloat(),
+                    startCalfInches = pObj.optDouble("startCalfInches", pObj.optDouble("currentCalfInches", 13.0)).toFloat()
                 )
                 database.userProfileDao().upsertUserProfile(entity)
                 profileImported = true
@@ -266,7 +298,10 @@ class DataBackupManager(private val database: AppDatabase) {
                             id = wo.optString("id", "${wo.getString("date")}_${wo.getString("segmentId")}"),
                             dayOfWeek = wo.optString("dayOfWeek", ""),
                             isCompleted = wo.optBoolean("isCompleted", false),
-                            completedAtMillis = wo.optLong("completedAtMillis", System.currentTimeMillis())
+                            completedAtMillis = wo.optLong("completedAtMillis", System.currentTimeMillis()),
+                            weightUsedKg = wo.optDouble("weightUsedKg", 4.0).toFloat(),
+                            repsPerSet = wo.optInt("repsPerSet", 12),
+                            effortRating = wo.optString("effortRating", "Good Burn")
                         )
                     )
                 }
@@ -318,6 +353,23 @@ class DataBackupManager(private val database: AppDatabase) {
                 }
             }
 
+            // 6. Restore Daily Habit Logs
+            var habitCount = 0
+            if (root.has("habitLogs")) {
+                val arr = root.getJSONArray("habitLogs")
+                for (i in 0 until arr.length()) {
+                    val h = arr.getJSONObject(i)
+                    database.habitDao().upsertHabitLog(
+                        DailyHabitLogEntity(
+                            date = h.getString("date"),
+                            waterGlasses = h.optInt("waterGlasses", 0),
+                            sleepHours = h.optDouble("sleepHours", 0.0).toFloat()
+                        )
+                    )
+                }
+                habitCount = arr.length()
+            }
+
             BackupSummary(
                 success = true,
                 message = "Backup restored successfully!",
@@ -325,7 +377,8 @@ class DataBackupManager(private val database: AppDatabase) {
                 weightLogsCount = weightCount,
                 mealLogsCount = mealCount,
                 workoutLogsCount = workoutCount,
-                remindersCount = reminderCount
+                remindersCount = reminderCount,
+                habitsCount = habitCount
             )
         } catch (e: Exception) {
             BackupSummary(

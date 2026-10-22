@@ -11,5 +11,8 @@ data class DailyWorkoutLogEntity(
     val id: String = "${date}_${segmentId}",
     val dayOfWeek: String,
     val isCompleted: Boolean,
-    val completedAtMillis: Long = System.currentTimeMillis()
+    val completedAtMillis: Long = System.currentTimeMillis(),
+    val weightUsedKg: Float = 4.0f,
+    val repsPerSet: Int = 12,
+    val effortRating: String = "Good Burn" // "Easy", "Good Burn", "Near Failure"
 )

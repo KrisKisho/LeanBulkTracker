@@ -465,7 +465,15 @@ fun EditProfileDialog(
                             currentForearmInches = fromDisplay(forearmText, currentProfile.currentForearmInches),
                             currentNeckInches = fromDisplay(neckText, currentProfile.currentNeckInches),
                             currentThighInches = fromDisplay(thighText, currentProfile.currentThighInches),
-                            currentCalfInches = fromDisplay(calfText, currentProfile.currentCalfInches)
+                            currentCalfInches = fromDisplay(calfText, currentProfile.currentCalfInches),
+                            // Preserve initial baseline measurements
+                            startWaistInches = if (currentProfile.startWaistInches > 0f) currentProfile.startWaistInches else currentProfile.currentWaistInches,
+                            startChestInches = if (currentProfile.startChestInches > 0f) currentProfile.startChestInches else currentProfile.currentChestInches,
+                            startArmInches = if (currentProfile.startArmInches > 0f) currentProfile.startArmInches else currentProfile.currentArmInches,
+                            startForearmInches = if (currentProfile.startForearmInches > 0f) currentProfile.startForearmInches else currentProfile.currentForearmInches,
+                            startNeckInches = if (currentProfile.startNeckInches > 0f) currentProfile.startNeckInches else currentProfile.currentNeckInches,
+                            startThighInches = if (currentProfile.startThighInches > 0f) currentProfile.startThighInches else currentProfile.currentThighInches,
+                            startCalfInches = if (currentProfile.startCalfInches > 0f) currentProfile.startCalfInches else currentProfile.currentCalfInches
                         )
                         onSave(updated)
                     },

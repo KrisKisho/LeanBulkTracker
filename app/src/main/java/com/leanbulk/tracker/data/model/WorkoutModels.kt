@@ -11,7 +11,11 @@ data class WorkoutSegment(
     val startSeconds: Float,
     val endSeconds: Float,
     val note: String = "",
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val weightUsedKg: Float = 4.0f,
+    val repsPerSet: Int = 12,
+    val effortRating: String = "Good Burn", // "Easy", "Good Burn", "Near Failure"
+    val isOverloadReady: Boolean = false
 ) {
     val durationSeconds: Int
         get() = (endSeconds - startSeconds).toInt()

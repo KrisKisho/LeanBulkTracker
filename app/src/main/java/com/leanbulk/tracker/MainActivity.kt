@@ -73,6 +73,11 @@ class MainActivity : ComponentActivity() {
             Log.e("MainActivity", "Error in setContent", e)
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(this)
+    }
 }
 
 @Composable

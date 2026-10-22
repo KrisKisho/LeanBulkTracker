@@ -24,6 +24,13 @@ data class UserProfileEntity(
     val currentNeckInches: Float = 13.8f,
     val currentThighInches: Float = 19.5f,
     val currentCalfInches: Float = 13.0f,
+    val startWaistInches: Float = 30.0f,
+    val startChestInches: Float = 35.5f,
+    val startArmInches: Float = 12.0f,
+    val startForearmInches: Float = 10.2f,
+    val startNeckInches: Float = 13.8f,
+    val startThighInches: Float = 19.5f,
+    val startCalfInches: Float = 13.0f,
     val equipment: String = "Single 4 kg Dumbbell + Bodyweight"
 ) {
     fun toModel(): UserProfile = UserProfile(
@@ -44,6 +51,13 @@ data class UserProfileEntity(
         currentNeckInches = currentNeckInches,
         currentThighInches = currentThighInches,
         currentCalfInches = currentCalfInches,
+        startWaistInches = startWaistInches,
+        startChestInches = startChestInches,
+        startArmInches = startArmInches,
+        startForearmInches = startForearmInches,
+        startNeckInches = startNeckInches,
+        startThighInches = startThighInches,
+        startCalfInches = startCalfInches,
         equipment = equipment
     )
 
@@ -66,6 +80,13 @@ data class UserProfileEntity(
             currentNeckInches = model.currentNeckInches,
             currentThighInches = model.currentThighInches,
             currentCalfInches = model.currentCalfInches,
+            startWaistInches = model.startWaistInches,
+            startChestInches = model.startChestInches,
+            startArmInches = model.startArmInches,
+            startForearmInches = model.startForearmInches,
+            startNeckInches = model.startNeckInches,
+            startThighInches = model.startThighInches,
+            startCalfInches = model.startCalfInches,
             equipment = model.equipment
         )
     }

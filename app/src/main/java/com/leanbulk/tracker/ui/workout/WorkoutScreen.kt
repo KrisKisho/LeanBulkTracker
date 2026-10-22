@@ -135,6 +135,9 @@ fun WorkoutScreen(
                 onSelect = { viewModel.selectSegment(segment) },
                 onToggleComplete = { isChecked ->
                     viewModel.toggleSegmentCompletion(segment, isChecked)
+                },
+                onOverloadChange = { weight, reps, effort ->
+                    viewModel.updateOverload(segment, weight, reps, effort)
                 }
             )
         }
@@ -438,7 +441,8 @@ fun SegmentListItem(
     segment: WorkoutSegment,
     isActive: Boolean,
     onSelect: () -> Unit,
-    onToggleComplete: (Boolean) -> Unit
+    onToggleComplete: (Boolean) -> Unit,
+    onOverloadChange: (Float, Int, String) -> Unit = { _, _, _ -> }
 ) {
     val borderColor = if (isActive) ElectricCyan else DarkSurfaceBorder
     val bgColor = if (isActive) DarkSurfaceElevated else DarkSurfaceElevated.copy(alpha = 0.6f)
@@ -449,92 +453,293 @@ fun SegmentListItem(
             .clip(RoundedCornerShape(14.dp))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(14.dp))
-            .clickable { onSelect() }
             .padding(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = segment.isCompleted,
-                onCheckedChange = onToggleComplete,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = NeonLime,
-                    checkmarkColor = DarkBackground,
-                    uncheckedColor = TextMuted
-                )
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "${segment.orderIndex}. ${segment.title}",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
-                        color = if (segment.isCompleted) TextMuted else TextPrimary
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Generous 44dp hit target for completing/uncompleting segment
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onToggleComplete(!segment.isCompleted) },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(DarkBackground)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    Checkbox(
+                        checked = segment.isCompleted,
+                        onCheckedChange = null,
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = NeonLime,
+                            checkmarkColor = DarkBackground,
+                            uncheckedColor = TextMuted
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onSelect() }
+                ) {
+                    Text(
+                        text = "${segment.orderIndex}. ${segment.title}",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
+                            color = if (segment.isCompleted) TextMuted else TextPrimary
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(DarkBackground)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = segment.formatTimeRange(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    color = TextSecondary
+                                )
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(DarkBackground)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = segment.formatDuration(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    color = ElectricCyan
+                                )
+                            )
+                        }
+                    }
+
+                    if (segment.note.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = segment.formatTimeRange(),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.sp,
+                            text = segment.note,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 11.sp,
                                 color = TextSecondary
                             )
                         )
                     }
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(DarkBackground)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = segment.formatDuration(),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.sp,
-                                color = ElectricCyan
-                            )
-                        )
-                    }
                 }
 
-                if (segment.note.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = segment.note,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
+                IconButton(
+                    onClick = onSelect,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play segment",
+                        tint = if (isActive) ElectricCyan else TextSecondary
                     )
                 }
             }
 
-            IconButton(
-                onClick = onSelect,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Play segment",
-                    tint = if (isActive) ElectricCyan else TextSecondary
-                )
+            // Inline Overload Coach Badge (Triggered when last 3 logs are rated "Easy")
+            if (segment.isOverloadReady) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AmberGold.copy(alpha = 0.12f))
+                        .border(1.dp, AmberGold.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.FitnessCenter,
+                            contentDescription = "Overload Ready",
+                            tint = AmberGold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Overload Ready: Increase reps by +2, use a 4s eccentric tempo, or step up dumbbell weight.",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AmberGold,
+                                lineHeight = 14.sp
+                            )
+                        )
+                    }
+                }
+            }
+
+            // Progressive Overload Adjustment Controls (When Completed)
+            if (segment.isCompleted) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DarkBackground.copy(alpha = 0.7f))
+                        .border(1.dp, DarkSurfaceBorder.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Weight Stepper
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Weight:", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontSize = 10.5.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(DarkSurfaceElevated)
+                                .border(1.dp, DarkSurfaceBorder, CircleShape)
+                                .clickable {
+                                    val newW = (segment.weightUsedKg - 0.5f).coerceAtLeast(0f)
+                                    onOverloadChange(newW, segment.repsPerSet, segment.effortRating)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("-", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "%.1f kg".format(segment.weightUsedKg),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = ElectricCyan,
+                                fontSize = 12.sp
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(DarkSurfaceElevated)
+                                .border(1.dp, DarkSurfaceBorder, CircleShape)
+                                .clickable {
+                                    val newW = segment.weightUsedKg + 0.5f
+                                    onOverloadChange(newW, segment.repsPerSet, segment.effortRating)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("+", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                    }
+
+                    // Reps Stepper
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Reps:", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontSize = 10.5.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(DarkSurfaceElevated)
+                                .border(1.dp, DarkSurfaceBorder, CircleShape)
+                                .clickable {
+                                    val newR = (segment.repsPerSet - 1).coerceAtLeast(1)
+                                    onOverloadChange(segment.weightUsedKg, newR, segment.effortRating)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("-", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${segment.repsPerSet}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = ElectricCyan,
+                                fontSize = 12.sp
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(DarkSurfaceElevated)
+                                .border(1.dp, DarkSurfaceBorder, CircleShape)
+                                .clickable {
+                                    val newR = segment.repsPerSet + 1
+                                    onOverloadChange(segment.weightUsedKg, newR, segment.effortRating)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("+", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Effort Rating Chips Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Effort:", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontSize = 10.5.sp)
+                    listOf("Easy", "Good Burn", "Near Failure").forEach { rating ->
+                        val isSelected = segment.effortRating.equals(rating, ignoreCase = true)
+                        val chipBg = when {
+                            isSelected && rating == "Easy" -> AmberGold.copy(alpha = 0.25f)
+                            isSelected && rating == "Good Burn" -> NeonLime.copy(alpha = 0.25f)
+                            isSelected && rating == "Near Failure" -> Color(0xFFFF5252).copy(alpha = 0.25f)
+                            else -> DarkBackground
+                        }
+                        val chipBorder = when {
+                            isSelected && rating == "Easy" -> AmberGold
+                            isSelected && rating == "Good Burn" -> NeonLime
+                            isSelected && rating == "Near Failure" -> Color(0xFFFF5252)
+                            else -> DarkSurfaceBorder
+                        }
+                        val chipText = when {
+                            isSelected && rating == "Easy" -> AmberGold
+                            isSelected && rating == "Good Burn" -> NeonLime
+                            isSelected && rating == "Near Failure" -> Color(0xFFFF5252)
+                            else -> TextSecondary
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(chipBg)
+                                .border(1.dp, chipBorder, RoundedCornerShape(6.dp))
+                                .clickable {
+                                    onOverloadChange(segment.weightUsedKg, segment.repsPerSet, rating)
+                                }
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = rating,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = chipText
+                                )
+                            )
+                        }
+                    }
+                }
             }
         }
     }

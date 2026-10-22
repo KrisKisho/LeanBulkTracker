@@ -276,11 +276,11 @@ fun BodyDimensionForecastCard(
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Part", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1.4f))
-                Text("Now", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontWeight = FontWeight.Bold), modifier = Modifier.weight(0.85f))
+                Text("Part", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1.25f))
+                Text("Now (Δ)", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1.25f))
                 Text("At $goalLabel", style = MaterialTheme.typography.labelSmall.copy(color = ElectricCyan, fontWeight = FontWeight.Bold), modifier = Modifier.weight(0.95f))
-                Text("Ideal", style = MaterialTheme.typography.labelSmall.copy(color = AmberGold, fontWeight = FontWeight.Bold), modifier = Modifier.weight(0.85f))
-                Text("Status", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1.35f))
+                Text("Ideal", style = MaterialTheme.typography.labelSmall.copy(color = AmberGold, fontWeight = FontWeight.Bold), modifier = Modifier.weight(0.80f))
+                Text("Status", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1.15f))
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -292,6 +292,13 @@ fun BodyDimensionForecastCard(
                     dim.isWarning -> CoralRed
                     dim.statusText == "On Track" || dim.statusText == "Safe Ceiling" -> NeonLime
                     else -> ElectricCyan
+                }
+
+                val delta = dim.deltaInches
+                val nowFormatted = if (kotlin.math.abs(delta) >= 0.05f) {
+                    "%.1f\" (%+.1f\")".format(dim.currentInches, delta)
+                } else {
+                    "%.1f\"".format(dim.currentInches)
                 }
 
                 Row(
@@ -314,14 +321,19 @@ fun BodyDimensionForecastCard(
                             color = if (dim.isWaist) AmberGold else TextPrimary,
                             fontSize = 11.5.sp
                         ),
-                        modifier = Modifier.weight(1.4f),
+                        modifier = Modifier.weight(1.25f),
                         maxLines = 1
                     )
 
                     Text(
-                        text = "%.1f\"".format(dim.currentInches),
-                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.5.sp),
-                        modifier = Modifier.weight(0.85f)
+                        text = nowFormatted,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = if (delta > 0.05f && !dim.isWaist) NeonLime else TextSecondary,
+                            fontWeight = if (delta > 0.05f) FontWeight.SemiBold else FontWeight.Normal,
+                            fontSize = 11.sp
+                        ),
+                        modifier = Modifier.weight(1.25f),
+                        maxLines = 1
                     )
 
                     Text(
@@ -341,12 +353,12 @@ fun BodyDimensionForecastCard(
                             color = AmberGold,
                             fontSize = 11.5.sp
                         ),
-                        modifier = Modifier.weight(0.85f)
+                        modifier = Modifier.weight(0.80f)
                     )
 
                     Box(
                         modifier = Modifier
-                            .weight(1.35f)
+                            .weight(1.15f)
                             .clip(RoundedCornerShape(4.dp))
                             .background(statusColor.copy(alpha = 0.15f))
                             .padding(horizontal = 2.dp, vertical = 2.dp),

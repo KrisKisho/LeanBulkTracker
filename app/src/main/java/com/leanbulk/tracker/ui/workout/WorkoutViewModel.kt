@@ -96,6 +96,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 repository.toggleSegmentCompletion(LocalDate.now(), segment, isCompleted)
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
             } catch (e: Exception) {
                 Log.e("WorkoutViewModel", "Error toggling segment completion", e)
             }
@@ -106,6 +107,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 repository.toggleSegmentCompletion(LocalDate.now(), segment, true)
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
                 val currentPlan = uiState.value.plan
                 val currentIndex = currentPlan.segments.indexOfFirst { it.id == segment.id }
                 if (currentIndex in 0 until currentPlan.segments.size - 1) {
@@ -114,6 +116,24 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 }
             } catch (e: Exception) {
                 Log.e("WorkoutViewModel", "Error handling segment finished", e)
+            }
+        }
+    }
+
+    fun updateOverload(segment: WorkoutSegment, weightKg: Float, reps: Int, effortRating: String) {
+        Log.d("WorkoutOverload", "updateOverload called for ${segment.id}: weight=$weightKg, reps=$reps, effort=$effortRating")
+        viewModelScope.launch {
+            try {
+                repository.updateOverloadData(
+                    date = uiState.value.selectedDate,
+                    segmentId = segment.id,
+                    weightKg = weightKg,
+                    reps = reps,
+                    effortRating = effortRating
+                )
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
+            } catch (e: Exception) {
+                Log.e("WorkoutViewModel", "Error updating overload", e)
             }
         }
     }

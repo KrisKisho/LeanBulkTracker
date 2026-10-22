@@ -309,6 +309,7 @@ fun DataBackupCard(
                         Text("• Daily Meal Logs: ${summary.mealLogsCount} meals", color = TextSecondary, fontSize = 12.sp)
                         Text("• Workout Logs: ${summary.workoutLogsCount} segments", color = TextSecondary, fontSize = 12.sp)
                         Text("• Reminders: ${summary.remindersCount} alarms configured", color = TextSecondary, fontSize = 12.sp)
+                        Text("• Habits & Recovery: ${summary.habitsCount} days", color = TextSecondary, fontSize = 12.sp)
                     }
                 }
             },

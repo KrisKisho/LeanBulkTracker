@@ -393,6 +393,33 @@ fun WeightTrajectoryChart(
                             style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
                         )
 
+                        // 7-DAY MOVING AVERAGE SECONDARY TREND LINE
+                        if (sortedEntries.size >= 2) {
+                            val maPoints = sortedEntries.mapIndexed { idx, entry ->
+                                val x = if (count == 1) leftPad + chartWidth / 2 else leftPad + idx * stepX
+                                val window = sortedEntries.filter { it.date in entry.date.minusDays(6)..entry.date }
+                                val maWeight = if (window.isNotEmpty()) window.map { it.weightKg }.average().toFloat() else entry.weightKg
+                                Offset(x, getWeightY(maWeight))
+                            }
+
+                            val maStrokePath = Path().apply {
+                                moveTo(maPoints.first().x, maPoints.first().y)
+                                for (i in 1 until maPoints.size) {
+                                    lineTo(maPoints[i].x, maPoints[i].y)
+                                }
+                            }
+
+                            drawPath(
+                                path = maStrokePath,
+                                color = Color(0xFFCE93D8),
+                                style = Stroke(
+                                    width = 2.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
+                                )
+                            )
+                        }
+
                         // Dots & Labels
                         val weightLabelPaint = android.graphics.Paint().apply {
                             color = android.graphics.Color.WHITE
@@ -493,20 +520,26 @@ fun WeightTrajectoryChart(
             ) {
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(ElectricCyan))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Weight (kg)", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontSize = 11.sp)
+                Text("Weight", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontSize = 10.5.sp)
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Box(modifier = Modifier.width(12.dp).height(2.5.dp).clip(RoundedCornerShape(1.dp)).background(Color(0xFFCE93D8)))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("7D Avg", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontSize = 10.5.sp)
+
+                Spacer(modifier = Modifier.width(10.dp))
 
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(AmberGold))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Waist (in)", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontSize = 11.sp)
+                Text("Waist", style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontSize = 10.5.sp)
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(NeonLime))
                 Spacer(modifier = Modifier.width(4.dp))
-                val goalLegendText = if (targetWeight % 1f == 0f) "Goal (%.0f kg)".format(targetWeight) else "Goal (%.1f kg)".format(targetWeight)
-                Text(goalLegendText, style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontSize = 11.sp)
+                val goalLegendText = if (targetWeight % 1f == 0f) "Goal (%.0f)".format(targetWeight) else "Goal (%.1f)".format(targetWeight)
+                Text(goalLegendText, style = MaterialTheme.typography.labelSmall, color = TextSecondary, fontSize = 10.5.sp)
             }
         }
     }

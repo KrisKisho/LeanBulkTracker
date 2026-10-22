@@ -58,8 +58,22 @@ data class CoachingInsight(
             val first = windowEntries.first()
             val last = windowEntries.last()
             val days = java.time.temporal.ChronoUnit.DAYS.between(first.date, last.date).coerceAtLeast(1)
-            val totalWeightDiff = last.weightKg - first.weightKg
-            val weeklyGain = (totalWeightDiff / days) * 7.0f
+
+            // 7-day moving average helper for smoother, noise-resistant trend evaluation
+            fun movingAvgFor(targetDate: LocalDate): Float {
+                val window = sorted.filter { it.date in targetDate.minusDays(6)..targetDate }
+                return if (window.isNotEmpty()) window.map { it.weightKg }.average().toFloat() else sorted.first { it.date <= targetDate }.weightKg
+            }
+
+            val firstMA = movingAvgFor(first.date)
+            val lastMA = movingAvgFor(last.date)
+            val movingAvgDelta = lastMA - firstMA
+            // 7-day moving average weekly gain rate (falls back to direct delta if single day or identical MA)
+            val weeklyGain = if (sorted.size >= 3) {
+                ((movingAvgDelta / days) * 7.0f)
+            } else {
+                ((last.weightKg - first.weightKg) / days) * 7.0f
+            }
             val waistDiff = last.waistInches - first.waistInches
 
             return when {
