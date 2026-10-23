@@ -65,5 +65,9 @@ dependencies {
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
 
+    // Media3 ExoPlayer for local video playback
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
