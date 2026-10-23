@@ -7,6 +7,7 @@ import com.leanbulk.tracker.data.local.AppDatabase
 import com.leanbulk.tracker.data.local.entity.DailyHabitLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyMealLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyWorkoutLogEntity
+import com.leanbulk.tracker.data.local.entity.MealTemplateEntity
 import com.leanbulk.tracker.data.local.entity.ReminderEntity
 import com.leanbulk.tracker.data.local.entity.UserProfileEntity
 import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
@@ -106,10 +107,30 @@ class DataBackupManager(private val database: AppDatabase) {
                 put("isChecked", m.isChecked)
                 put("isVeg", m.isVeg)
                 put("isCustom", m.isCustom)
+                put("ingredientsJson", m.ingredientsJson)
             }
             mealArr.put(mObj)
         }
         root.put("mealLogs", mealArr)
+
+        // 3b. Custom Meal Templates
+        val templates = database.mealDao().getAllMealTemplatesSync()
+        val templateArr = JSONArray()
+        templates.forEach { t ->
+            val tObj = JSONObject().apply {
+                put("mealId", t.mealId)
+                put("mealName", t.mealName)
+                put("title", t.title)
+                put("calories", t.calories)
+                put("protein", t.protein)
+                put("carbs", t.carbs)
+                put("fat", t.fat)
+                put("isVeg", t.isVeg)
+                put("ingredientsJson", t.ingredientsJson)
+            }
+            templateArr.put(tObj)
+        }
+        root.put("mealTemplates", templateArr)
 
         // 4. Daily Workout Logs
         val workoutLogs = database.workoutDao().getAllWorkoutLogsSync()
@@ -274,13 +295,39 @@ class DataBackupManager(private val database: AppDatabase) {
                             fat = m.getInt("fat"),
                             isVeg = m.optBoolean("isVeg", false),
                             isChecked = m.optBoolean("isChecked", false),
-                            isCustom = m.optBoolean("isCustom", false)
+                            isCustom = m.optBoolean("isCustom", false),
+                            ingredientsJson = m.optString("ingredientsJson", "")
                         )
                     )
                 }
                 if (list.isNotEmpty()) {
                     database.mealDao().upsertMeals(list)
                     mealCount = list.size
+                }
+            }
+
+            // 3b. Restore Custom Meal Templates
+            if (root.has("mealTemplates")) {
+                val tArr = root.getJSONArray("mealTemplates")
+                val tList = mutableListOf<MealTemplateEntity>()
+                for (i in 0 until tArr.length()) {
+                    val t = tArr.getJSONObject(i)
+                    tList.add(
+                        MealTemplateEntity(
+                            mealId = t.getString("mealId"),
+                            mealName = t.getString("mealName"),
+                            title = t.getString("title"),
+                            calories = t.getInt("calories"),
+                            protein = t.getInt("protein"),
+                            carbs = t.getInt("carbs"),
+                            fat = t.getInt("fat"),
+                            isVeg = t.optBoolean("isVeg", false),
+                            ingredientsJson = t.optString("ingredientsJson", "")
+                        )
+                    )
+                }
+                if (tList.isNotEmpty()) {
+                    database.mealDao().upsertMealTemplates(tList)
                 }
             }
 

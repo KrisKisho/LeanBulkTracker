@@ -17,5 +17,6 @@ data class DailyMealLogEntity(
     val fat: Int,
     val isVeg: Boolean,
     val isChecked: Boolean,
-    val isCustom: Boolean
+    val isCustom: Boolean,
+    val ingredientsJson: String = ""
 )

@@ -9,6 +9,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,14 +23,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -74,6 +76,7 @@ fun MealsScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
+    val customizingMeal by viewModel.customizingMeal.collectAsState()
 
     val stepPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -94,6 +97,22 @@ fun MealsScreen(
             onDismiss = { viewModel.closeAddDialog() },
             onAddPreset = { preset -> viewModel.addPresetMeal(preset) },
             onAddCustom = { name, cal, p, c, f -> viewModel.addCustomMeal(name, cal, p, c, f) }
+        )
+    }
+
+    // Interactive Meal Customizer Dialog
+    customizingMeal?.let { mealToCustomize ->
+        CustomizeMealDialog(
+            meal = mealToCustomize,
+            onDismiss = { viewModel.closeCustomizeDialog() },
+            onSave = { ingredients, saveAsTemplate ->
+                viewModel.customizeMeal(mealToCustomize.id, ingredients, saveAsTemplate)
+                Toast.makeText(context, "Updated ${mealToCustomize.mealName} macros!", Toast.LENGTH_SHORT).show()
+            },
+            onResetToDefault = {
+                viewModel.resetMealToDefault(mealToCustomize.id)
+                Toast.makeText(context, "Reset ${mealToCustomize.mealName} to default", Toast.LENGTH_SHORT).show()
+            }
         )
     }
 
@@ -122,7 +141,7 @@ fun MealsScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "2,420 kcal Lean Hypertrophy Menu",
+                        text = "Customizable Portions & Exact Calorie Engine",
                         style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -258,6 +277,9 @@ fun MealsScreen(
                 onVegToggle = { isVeg ->
                     viewModel.toggleVegOption(meal, isVeg)
                 },
+                onCustomize = {
+                    viewModel.openCustomizeDialog(meal)
+                },
                 onDelete = {
                     viewModel.deleteCustomMeal(meal.id)
                 }
@@ -275,6 +297,7 @@ fun MealChecklistItem(
     meal: MealItem,
     onCheckedChange: (Boolean) -> Unit,
     onVegToggle: (Boolean) -> Unit,
+    onCustomize: () -> Unit,
     onDelete: () -> Unit
 ) {
     val borderColor = if (meal.isChecked) NeonLime.copy(alpha = 0.5f) else DarkSurfaceBorder
@@ -359,12 +382,45 @@ fun MealChecklistItem(
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 ),
-                modifier = Modifier.padding(start = 44.dp)
+                modifier = Modifier
+                    .padding(start = 44.dp)
+                    .clickable { onCustomize() }
             )
+
+            // Customized Ingredient breakdown pills (if meal has ingredients)
+            if (meal.ingredients.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 44.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    meal.ingredients.forEach { ing ->
+                        val qtyStr = if (ing.quantity % 1f == 0f) ing.quantity.toInt().toString() else "%.1f".format(ing.quantity)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(DarkBackground)
+                                .border(1.dp, DarkSurfaceBorder.copy(alpha = 0.7f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "$qtyStr${ing.unit} ${ing.name}",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = TextSecondary,
+                                    fontSize = 10.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Badges row: Calories, Protein & Veg Swap toggle
+            // Badges row: Calories, Protein, Customize button & Veg Swap toggle
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -404,36 +460,70 @@ fun MealChecklistItem(
                     }
                 }
 
-                // Veg / Non-Veg Swap Button
-                if (meal.hasVegOption) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Customize / Edit Button
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (meal.isVeg) NeonLime.copy(alpha = 0.2f) else DarkBackground)
-                            .border(
-                                1.dp,
-                                if (meal.isVeg) NeonLime else CoralRed.copy(alpha = 0.6f),
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable { onVegToggle(!meal.isVeg) }
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .background(ElectricCyan.copy(alpha = 0.15f))
+                            .border(1.dp, ElectricCyan.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            .clickable { onCustomize() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (meal.isVeg) Icons.Default.Eco else Icons.Default.Restaurant,
-                                contentDescription = "Toggle Veg",
-                                tint = if (meal.isVeg) NeonLime else CoralRed,
-                                modifier = Modifier.size(14.dp)
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Customize meal",
+                                tint = ElectricCyan,
+                                modifier = Modifier.size(12.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (meal.isVeg) "Veg Swap" else "Non-Veg",
+                                text = "Customize",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = if (meal.isVeg) NeonLime else CoralRed,
+                                    color = ElectricCyan,
                                     fontSize = 11.sp
                                 )
                             )
+                        }
+                    }
+
+                    // Veg / Non-Veg Swap Button
+                    if (meal.hasVegOption) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (meal.isVeg) NeonLime.copy(alpha = 0.2f) else DarkBackground)
+                                .border(
+                                    1.dp,
+                                    if (meal.isVeg) NeonLime else CoralRed.copy(alpha = 0.6f),
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onVegToggle(!meal.isVeg) }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (meal.isVeg) Icons.Default.Eco else Icons.Default.Restaurant,
+                                    contentDescription = "Toggle Veg",
+                                    tint = if (meal.isVeg) NeonLime else CoralRed,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (meal.isVeg) "Veg" else "Non-Veg",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (meal.isVeg) NeonLime else CoralRed,
+                                        fontSize = 11.sp
+                                    )
+                                )
+                            }
                         }
                     }
                 }

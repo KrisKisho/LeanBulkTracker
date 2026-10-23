@@ -10,6 +10,7 @@ import com.leanbulk.tracker.data.local.AppDatabase
 import com.leanbulk.tracker.data.model.DynamicNutritionEngine
 import com.leanbulk.tracker.data.model.DynamicNutritionTarget
 import com.leanbulk.tracker.data.model.MealDataSource
+import com.leanbulk.tracker.data.model.MealIngredient
 import com.leanbulk.tracker.data.model.MealItem
 import com.leanbulk.tracker.data.model.SouthIndianTopUp
 import com.leanbulk.tracker.data.model.UserProfile
@@ -21,6 +22,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -75,6 +77,8 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     private val _showAddDialog = MutableStateFlow(false)
+    private val _customizingMeal = MutableStateFlow<MealItem?>(null)
+    val customizingMeal: StateFlow<MealItem?> = _customizingMeal.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -207,6 +211,39 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeAddDialog() {
         _showAddDialog.value = false
+    }
+
+    fun openCustomizeDialog(meal: MealItem) {
+        Log.d("MealsViewModel", "openCustomizeDialog for ${meal.id} - ${meal.mealName}")
+        _customizingMeal.value = meal
+    }
+
+    fun closeCustomizeDialog() {
+        _customizingMeal.value = null
+    }
+
+    fun customizeMeal(mealId: String, ingredients: List<MealIngredient>, saveAsTemplate: Boolean) {
+        viewModelScope.launch {
+            try {
+                mealRepository.customizeMeal(_selectedDate.value, mealId, ingredients, saveAsTemplate)
+                _customizingMeal.value = null
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error customizing meal", e)
+            }
+        }
+    }
+
+    fun resetMealToDefault(mealId: String) {
+        viewModelScope.launch {
+            try {
+                mealRepository.resetMealToDefault(_selectedDate.value, mealId)
+                _customizingMeal.value = null
+                com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error resetting meal to default", e)
+            }
+        }
     }
 
     fun addPresetMeal(preset: MealDataSource.QuickPreset) {

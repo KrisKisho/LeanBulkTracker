@@ -17,22 +17,34 @@ data class MealItem(
     val vegFat: Int = defaultFat,
     val isVeg: Boolean = false,
     val isChecked: Boolean = false,
-    val isCustom: Boolean = false
+    val isCustom: Boolean = false,
+    val ingredients: List<MealIngredient> = emptyList(),
+    val ingredientsJson: String = ""
 ) {
     val activeTitle: String
-        get() = if (hasVegOption && isVeg) vegTitle else defaultTitle
+        get() = if (ingredients.isNotEmpty()) {
+            FoodCatalog.buildSummaryTitle(ingredients)
+        } else if (hasVegOption && isVeg) vegTitle else defaultTitle
 
     val activeCalories: Int
-        get() = if (hasVegOption && isVeg) vegCalories else defaultCalories
+        get() = if (ingredients.isNotEmpty()) {
+            ingredients.sumOf { it.calories }
+        } else if (hasVegOption && isVeg) vegCalories else defaultCalories
 
     val activeProtein: Int
-        get() = if (hasVegOption && isVeg) vegProtein else defaultProtein
+        get() = if (ingredients.isNotEmpty()) {
+            ingredients.sumOf { it.protein.toDouble() }.toInt()
+        } else if (hasVegOption && isVeg) vegProtein else defaultProtein
 
     val activeCarbs: Int
-        get() = if (hasVegOption && isVeg) vegCarbs else defaultCarbs
+        get() = if (ingredients.isNotEmpty()) {
+            ingredients.sumOf { it.carbs.toDouble() }.toInt()
+        } else if (hasVegOption && isVeg) vegCarbs else defaultCarbs
 
     val activeFat: Int
-        get() = if (hasVegOption && isVeg) vegFat else defaultFat
+        get() = if (ingredients.isNotEmpty()) {
+            ingredients.sumOf { it.fat.toDouble() }.toInt()
+        } else if (hasVegOption && isVeg) vegFat else defaultFat
 }
 
 object MealDataSource {
@@ -53,7 +65,9 @@ object MealDataSource {
             vegCarbs = 66,
             vegFat = 15,
             isVeg = false,
-            isChecked = false
+            isChecked = false,
+            ingredients = FoodCatalog.getDefaultIngredientsForMeal("meal_breakfast", false),
+            ingredientsJson = IngredientJsonHelper.toJsonString(FoodCatalog.getDefaultIngredientsForMeal("meal_breakfast", false))
         ),
         MealItem(
             id = "meal_shake",
@@ -67,7 +81,9 @@ object MealDataSource {
             hasVegOption = false,
             vegTitle = "",
             isVeg = true,
-            isChecked = false
+            isChecked = false,
+            ingredients = FoodCatalog.getDefaultIngredientsForMeal("meal_shake", true),
+            ingredientsJson = IngredientJsonHelper.toJsonString(FoodCatalog.getDefaultIngredientsForMeal("meal_shake", true))
         ),
         MealItem(
             id = "meal_lunch",
@@ -85,7 +101,9 @@ object MealDataSource {
             vegCarbs = 82,
             vegFat = 11,
             isVeg = false,
-            isChecked = false
+            isChecked = false,
+            ingredients = FoodCatalog.getDefaultIngredientsForMeal("meal_lunch", false),
+            ingredientsJson = IngredientJsonHelper.toJsonString(FoodCatalog.getDefaultIngredientsForMeal("meal_lunch", false))
         ),
         MealItem(
             id = "meal_snack",
@@ -99,7 +117,9 @@ object MealDataSource {
             hasVegOption = false,
             vegTitle = "",
             isVeg = true,
-            isChecked = false
+            isChecked = false,
+            ingredients = FoodCatalog.getDefaultIngredientsForMeal("meal_snack", true),
+            ingredientsJson = IngredientJsonHelper.toJsonString(FoodCatalog.getDefaultIngredientsForMeal("meal_snack", true))
         ),
         MealItem(
             id = "meal_dinner",
@@ -117,7 +137,9 @@ object MealDataSource {
             vegCarbs = 82,
             vegFat = 12,
             isVeg = false,
-            isChecked = false
+            isChecked = false,
+            ingredients = FoodCatalog.getDefaultIngredientsForMeal("meal_dinner", false),
+            ingredientsJson = IngredientJsonHelper.toJsonString(FoodCatalog.getDefaultIngredientsForMeal("meal_dinner", false))
         )
     )
 

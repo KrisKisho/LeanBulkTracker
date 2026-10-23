@@ -15,6 +15,7 @@ import com.leanbulk.tracker.data.local.dao.WorkoutDao
 import com.leanbulk.tracker.data.local.entity.DailyHabitLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyMealLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyWorkoutLogEntity
+import com.leanbulk.tracker.data.local.entity.MealTemplateEntity
 import com.leanbulk.tracker.data.local.entity.ReminderEntity
 import com.leanbulk.tracker.data.local.entity.UserProfileEntity
 import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
@@ -26,9 +27,10 @@ import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
         WeightProgressEntity::class,
         ReminderEntity::class,
         UserProfileEntity::class,
-        DailyHabitLogEntity::class
+        DailyHabitLogEntity::class,
+        MealTemplateEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -65,6 +67,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add ingredientsJson to meal_logs
+                db.execSQL("ALTER TABLE meal_logs ADD COLUMN ingredientsJson TEXT NOT NULL DEFAULT ''")
+
+                // Create meal_templates table for persistent customizable default recipes
+                db.execSQL("CREATE TABLE IF NOT EXISTS `meal_templates` (`mealId` TEXT NOT NULL, `mealName` TEXT NOT NULL, `title` TEXT NOT NULL, `calories` INTEGER NOT NULL, `protein` INTEGER NOT NULL, `carbs` INTEGER NOT NULL, `fat` INTEGER NOT NULL, `isVeg` INTEGER NOT NULL, `ingredientsJson` TEXT NOT NULL, PRIMARY KEY(`mealId`))")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -72,7 +84,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lean_bulk_tracker.db"
                 )
-                    .addMigrations(MIGRATION_3_4)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
