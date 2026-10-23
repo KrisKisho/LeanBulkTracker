@@ -30,7 +30,7 @@ import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
         DailyHabitLogEntity::class,
         MealTemplateEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -77,6 +77,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add set3RepsAchieved and progressionWeek to workout_logs
+                db.execSQL("ALTER TABLE workout_logs ADD COLUMN set3RepsAchieved INTEGER NOT NULL DEFAULT 10")
+                db.execSQL("ALTER TABLE workout_logs ADD COLUMN progressionWeek INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -84,7 +92,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lean_bulk_tracker.db"
                 )
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

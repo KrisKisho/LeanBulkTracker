@@ -145,7 +145,9 @@ class DataBackupManager(private val database: AppDatabase) {
                 put("completedAtMillis", wo.completedAtMillis)
                 put("weightUsedKg", wo.weightUsedKg.toDouble())
                 put("repsPerSet", wo.repsPerSet)
+                put("set3RepsAchieved", wo.set3RepsAchieved)
                 put("effortRating", wo.effortRating)
+                put("progressionWeek", wo.progressionWeek)
             }
             workoutArr.put(woObj)
         }
@@ -348,7 +350,9 @@ class DataBackupManager(private val database: AppDatabase) {
                             completedAtMillis = wo.optLong("completedAtMillis", System.currentTimeMillis()),
                             weightUsedKg = wo.optDouble("weightUsedKg", 4.0).toFloat(),
                             repsPerSet = wo.optInt("repsPerSet", 12),
-                            effortRating = wo.optString("effortRating", "Good Burn")
+                            set3RepsAchieved = wo.optInt("set3RepsAchieved", wo.optInt("repsPerSet", 10)),
+                            effortRating = wo.optString("effortRating", "Good Burn"),
+                            progressionWeek = wo.optInt("progressionWeek", 1)
                         )
                     )
                 }

@@ -27,7 +27,10 @@ interface WorkoutDao {
     @Query("UPDATE workout_logs SET isCompleted = :isCompleted WHERE date = :date AND segmentId = :segmentId")
     suspend fun updateSegmentCompletion(date: String, segmentId: String, isCompleted: Boolean): Int
 
-    @Query("UPDATE workout_logs SET weightUsedKg = :weight, repsPerSet = :reps, effortRating = :effort WHERE date = :date AND segmentId = :segmentId")
+    @Query("UPDATE workout_logs SET weightUsedKg = :weight, repsPerSet = :reps, set3RepsAchieved = :set3Reps, effortRating = :effort, progressionWeek = :week WHERE date = :date AND segmentId = :segmentId")
+    suspend fun updateOverload(date: String, segmentId: String, weight: Float, reps: Int, set3Reps: Int, effort: String, week: Int): Int
+
+    @Query("UPDATE workout_logs SET weightUsedKg = :weight, repsPerSet = :reps, set3RepsAchieved = :reps, effortRating = :effort WHERE date = :date AND segmentId = :segmentId")
     suspend fun updateOverload(date: String, segmentId: String, weight: Float, reps: Int, effort: String): Int
 
     @Query("SELECT * FROM workout_logs WHERE segmentId = :segmentId AND isCompleted = 1 ORDER BY date DESC, completedAtMillis DESC LIMIT 1")

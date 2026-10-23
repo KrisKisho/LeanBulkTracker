@@ -14,8 +14,12 @@ data class WorkoutSegment(
     val isCompleted: Boolean = false,
     val weightUsedKg: Float = 4.0f,
     val repsPerSet: Int = 12,
+    val set3RepsAchieved: Int = 10,
     val effortRating: String = "Good Burn", // "Easy", "Good Burn", "Near Failure"
-    val isOverloadReady: Boolean = false
+    val progressionWeek: Int = 1,
+    val isOverloadReady: Boolean = false,
+    val isUpgradeUnlocked: Boolean = false,
+    val upgradeDetails: UpgradeEligibilityResult? = null
 ) {
     val durationSeconds: Int
         get() = (endSeconds - startSeconds).toInt()

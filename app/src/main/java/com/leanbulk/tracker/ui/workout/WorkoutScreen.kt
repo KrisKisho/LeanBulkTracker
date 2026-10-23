@@ -23,10 +23,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -34,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -47,7 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.leanbulk.tracker.data.model.WorkoutDataSource
+import com.leanbulk.tracker.data.model.MesocyclePhase
+import com.leanbulk.tracker.data.model.ProgressiveOverloadEngine
 import com.leanbulk.tracker.data.model.WorkoutSegment
 import com.leanbulk.tracker.ui.components.YouTubePlayerContainer
 import com.leanbulk.tracker.ui.theme.AmberGold
@@ -74,7 +74,7 @@ fun WorkoutScreen(
             .fillMaxSize()
             .background(DarkBackground)
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
             Spacer(modifier = Modifier.height(8.dp))
@@ -82,6 +82,14 @@ fun WorkoutScreen(
             WorkoutHeader(
                 streak = state.streak,
                 selectedDay = state.selectedDay
+            )
+        }
+
+        item {
+            // 4-Week Double Progression Cycle Header Card
+            MesocycleHeaderCard(
+                activeWeek = state.activeCycleWeek,
+                onWeekSelected = { viewModel.selectCycleWeek(it) }
             )
         }
 
@@ -123,7 +131,7 @@ fun WorkoutScreen(
                     color = ElectricCyan,
                     letterSpacing = 0.8.sp
                 ),
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
 
@@ -132,12 +140,16 @@ fun WorkoutScreen(
             SegmentListItem(
                 segment = segment,
                 isActive = isActive,
+                activeCycleWeek = state.activeCycleWeek,
                 onSelect = { viewModel.selectSegment(segment) },
                 onToggleComplete = { isChecked ->
                     viewModel.toggleSegmentCompletion(segment, isChecked)
                 },
-                onOverloadChange = { weight, reps, effort ->
-                    viewModel.updateOverload(segment, weight, reps, effort)
+                onOverloadChange = { weight, reps, set3Reps, effort ->
+                    viewModel.updateOverload(segment, weight, reps, set3Reps, effort)
+                },
+                onApplyUpgrade = { nextWeight ->
+                    viewModel.applyWeightUpgrade(segment, nextWeight)
                 }
             )
         }
@@ -195,6 +207,160 @@ fun WorkoutHeader(
                         color = AmberGold
                     )
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun MesocycleHeaderCard(
+    activeWeek: Int,
+    onWeekSelected: (Int) -> Unit
+) {
+    val phase = MesocyclePhase.fromWeek(activeWeek)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkSurfaceElevated)
+            .border(1.dp, ElectricCyan.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            .padding(14.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Timer,
+                        contentDescription = "Mesocycle",
+                        tint = ElectricCyan,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "4-WEEK DOUBLE PROGRESSION",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = ElectricCyan,
+                            letterSpacing = 0.8.sp
+                        )
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(DarkBackground)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = "Tempo: ${phase.tempoCode}",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = NeonLime,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 4-Week Selector Row: [Week 1: 3-1-1] [Week 2: 2-1-1] [Week 3: 2-0-1] [Week 4: Test]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    1 to "Week 1: 3-1-1",
+                    2 to "Week 2: 2-1-1",
+                    3 to "Week 3: 2-0-1",
+                    4 to "Week 4: Test"
+                ).forEach { (wk, label) ->
+                    val isSelected = wk == activeWeek
+                    val chipBg by animateColorAsState(
+                        targetValue = if (isSelected) ElectricCyan else DarkBackground,
+                        label = "chip_bg"
+                    )
+                    val chipText by animateColorAsState(
+                        targetValue = if (isSelected) DarkBackground else TextSecondary,
+                        label = "chip_text"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(chipBg)
+                            .border(
+                                1.dp,
+                                if (isSelected) ElectricCyan else DarkSurfaceBorder,
+                                RoundedCornerShape(10.dp)
+                            )
+                            .clickable { onWeekSelected(wk) }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = chipText,
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Active Week Tempo Rule Banner
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkBackground.copy(alpha = 0.85f))
+                    .border(
+                        1.dp,
+                        if (activeWeek == 4) AmberGold.copy(alpha = 0.4f) else DarkSurfaceBorder,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (activeWeek == 4) AmberGold else NeonLime)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Week $activeWeek: ${phase.phaseName}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = if (activeWeek == 4) AmberGold else TextPrimary,
+                                fontSize = 12.sp
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "${phase.cadenceSummary} • ${phase.focusDescription}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+                    )
+                }
             }
         }
     }
@@ -440,12 +606,16 @@ fun ActiveSegmentPlayerCard(
 fun SegmentListItem(
     segment: WorkoutSegment,
     isActive: Boolean,
+    activeCycleWeek: Int,
     onSelect: () -> Unit,
     onToggleComplete: (Boolean) -> Unit,
-    onOverloadChange: (Float, Int, String) -> Unit = { _, _, _ -> }
+    onOverloadChange: (Float, Int, Int, String) -> Unit = { _, _, _, _ -> },
+    onApplyUpgrade: (Float) -> Unit = {}
 ) {
     val borderColor = if (isActive) ElectricCyan else DarkSurfaceBorder
     val bgColor = if (isActive) DarkSurfaceElevated else DarkSurfaceElevated.copy(alpha = 0.6f)
+    val profile = ProgressiveOverloadEngine.getProfile(segment.id)
+    val phase = MesocyclePhase.fromWeek(activeCycleWeek)
 
     Box(
         modifier = Modifier
@@ -555,8 +725,123 @@ fun SegmentListItem(
                 }
             }
 
-            // Inline Overload Coach Badge (Triggered when last 3 logs are rated "Easy")
-            if (segment.isOverloadReady) {
+            // Target Prescription Badge for Active Week
+            if (profile != null && profile.exercises.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DarkBackground.copy(alpha = 0.9f))
+                        .border(1.dp, ElectricCyan.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    profile.exercises.forEach { ex ->
+                        val targetRep = ex.getTargetForWeek(activeCycleWeek)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (profile.exercises.size > 1) "• ${ex.exerciseName}" else ex.exerciseName,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary,
+                                    fontSize = 11.sp
+                                ),
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Target: $targetRep @ %.1f kg • %s".format(segment.weightUsedKg, phase.tempoCode),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = NeonLime,
+                                    fontSize = 10.5.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 3-Signal "WEIGHT UPGRADE UNLOCKED!" Alert Banner
+            if (segment.isUpgradeUnlocked && segment.upgradeDetails != null) {
+                val upgrade = segment.upgradeDetails
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AmberGold.copy(alpha = 0.15f))
+                        .border(1.5.dp, AmberGold, RoundedCornerShape(10.dp))
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "Upgrade Unlocked",
+                                tint = AmberGold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "WEIGHT UPGRADE UNLOCKED!",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = AmberGold,
+                                    letterSpacing = 0.8.sp
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "You hit ${segment.set3RepsAchieved} clean reps on Set 3! Move up from %.1f kg -> %.1f kg next session and reset to Week 1 Tempo (%s slow 3-1-1 reps).".format(
+                                upgrade.currentWeightKg,
+                                upgrade.nextWeightKg,
+                                upgrade.w1RepRange
+                            ),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 11.5.sp,
+                                color = TextPrimary,
+                                lineHeight = 16.sp
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AmberGold)
+                                .clickable {
+                                    onApplyUpgrade(upgrade.nextWeightKg)
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Upgrade to %.1f kg & Reset to Week 1".format(upgrade.nextWeightKg),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = DarkBackground,
+                                    fontSize = 12.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            } else if (segment.isOverloadReady) {
+                // Inline Overload Coach Badge (Triggered when last 3 logs are rated "Easy")
                 Spacer(modifier = Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
@@ -612,7 +897,7 @@ fun SegmentListItem(
                                 .border(1.dp, DarkSurfaceBorder, CircleShape)
                                 .clickable {
                                     val newW = (segment.weightUsedKg - 0.5f).coerceAtLeast(0f)
-                                    onOverloadChange(newW, segment.repsPerSet, segment.effortRating)
+                                    onOverloadChange(newW, segment.repsPerSet, segment.set3RepsAchieved, segment.effortRating)
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -636,7 +921,7 @@ fun SegmentListItem(
                                 .border(1.dp, DarkSurfaceBorder, CircleShape)
                                 .clickable {
                                     val newW = segment.weightUsedKg + 0.5f
-                                    onOverloadChange(newW, segment.repsPerSet, segment.effortRating)
+                                    onOverloadChange(newW, segment.repsPerSet, segment.set3RepsAchieved, segment.effortRating)
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -644,9 +929,9 @@ fun SegmentListItem(
                         }
                     }
 
-                    // Reps Stepper
+                    // Set 3 Reps Stepper
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Reps:", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontSize = 10.5.sp)
+                        Text("Set 3 Reps:", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontSize = 10.5.sp)
                         Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
@@ -655,8 +940,8 @@ fun SegmentListItem(
                                 .background(DarkSurfaceElevated)
                                 .border(1.dp, DarkSurfaceBorder, CircleShape)
                                 .clickable {
-                                    val newR = (segment.repsPerSet - 1).coerceAtLeast(1)
-                                    onOverloadChange(segment.weightUsedKg, newR, segment.effortRating)
+                                    val newR = (segment.set3RepsAchieved - 1).coerceAtLeast(1)
+                                    onOverloadChange(segment.weightUsedKg, newR, newR, segment.effortRating)
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -664,10 +949,10 @@ fun SegmentListItem(
                         }
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "${segment.repsPerSet}",
+                            text = "${segment.set3RepsAchieved}",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = ElectricCyan,
+                                color = NeonLime,
                                 fontSize = 12.sp
                             )
                         )
@@ -679,8 +964,8 @@ fun SegmentListItem(
                                 .background(DarkSurfaceElevated)
                                 .border(1.dp, DarkSurfaceBorder, CircleShape)
                                 .clickable {
-                                    val newR = segment.repsPerSet + 1
-                                    onOverloadChange(segment.weightUsedKg, newR, segment.effortRating)
+                                    val newR = segment.set3RepsAchieved + 1
+                                    onOverloadChange(segment.weightUsedKg, newR, newR, segment.effortRating)
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -691,31 +976,35 @@ fun SegmentListItem(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Effort Rating Chips Row
+                // Effort Rating Chips Row with RIR labels
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Effort:", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontSize = 10.5.sp)
-                    listOf("Easy", "Good Burn", "Near Failure").forEach { rating ->
-                        val isSelected = segment.effortRating.equals(rating, ignoreCase = true)
+                    listOf(
+                        "Easy" to "Easy (3+ RIR)",
+                        "Good Burn" to "Good Burn (1-2 RIR)",
+                        "Near Failure" to "Near Failure (0 RIR)"
+                    ).forEach { (ratingKey, label) ->
+                        val isSelected = segment.effortRating.equals(ratingKey, ignoreCase = true)
                         val chipBg = when {
-                            isSelected && rating == "Easy" -> AmberGold.copy(alpha = 0.25f)
-                            isSelected && rating == "Good Burn" -> NeonLime.copy(alpha = 0.25f)
-                            isSelected && rating == "Near Failure" -> Color(0xFFFF5252).copy(alpha = 0.25f)
+                            isSelected && ratingKey == "Easy" -> AmberGold.copy(alpha = 0.25f)
+                            isSelected && ratingKey == "Good Burn" -> NeonLime.copy(alpha = 0.25f)
+                            isSelected && ratingKey == "Near Failure" -> Color(0xFFFF5252).copy(alpha = 0.25f)
                             else -> DarkBackground
                         }
                         val chipBorder = when {
-                            isSelected && rating == "Easy" -> AmberGold
-                            isSelected && rating == "Good Burn" -> NeonLime
-                            isSelected && rating == "Near Failure" -> Color(0xFFFF5252)
+                            isSelected && ratingKey == "Easy" -> AmberGold
+                            isSelected && ratingKey == "Good Burn" -> NeonLime
+                            isSelected && ratingKey == "Near Failure" -> Color(0xFFFF5252)
                             else -> DarkSurfaceBorder
                         }
                         val chipText = when {
-                            isSelected && rating == "Easy" -> AmberGold
-                            isSelected && rating == "Good Burn" -> NeonLime
-                            isSelected && rating == "Near Failure" -> Color(0xFFFF5252)
+                            isSelected && ratingKey == "Easy" -> AmberGold
+                            isSelected && ratingKey == "Good Burn" -> NeonLime
+                            isSelected && ratingKey == "Near Failure" -> Color(0xFFFF5252)
                             else -> TextSecondary
                         }
 
@@ -725,14 +1014,14 @@ fun SegmentListItem(
                                 .background(chipBg)
                                 .border(1.dp, chipBorder, RoundedCornerShape(6.dp))
                                 .clickable {
-                                    onOverloadChange(segment.weightUsedKg, segment.repsPerSet, rating)
+                                    onOverloadChange(segment.weightUsedKg, segment.repsPerSet, segment.set3RepsAchieved, ratingKey)
                                 }
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                .padding(horizontal = 7.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = rating,
+                                text = label,
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 10.sp,
+                                    fontSize = 9.5.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = chipText
                                 )

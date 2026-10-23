@@ -37,3 +37,7 @@ Thumbs.db
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Media / downloaded assets
+videos/
+
