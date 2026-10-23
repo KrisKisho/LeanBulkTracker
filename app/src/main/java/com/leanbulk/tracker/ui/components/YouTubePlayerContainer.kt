@@ -5,8 +5,6 @@ import android.net.Uri
 import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,13 +23,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -89,12 +89,18 @@ import java.io.File
 fun YouTubePlayerContainer(
     segment: WorkoutSegment?,
     onSegmentEnded: (WorkoutSegment) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    autoPlay: Boolean = false,
+    continuousPlay: Boolean = false,
+    onToggleContinuousPlay: (Boolean) -> Unit = {}
 ) {
     WorkoutVideoPlayerContainer(
         segment = segment,
         onSegmentEnded = onSegmentEnded,
-        modifier = modifier
+        modifier = modifier,
+        autoPlay = autoPlay,
+        continuousPlay = continuousPlay,
+        onToggleContinuousPlay = onToggleContinuousPlay
     )
 }
 
@@ -102,7 +108,10 @@ fun YouTubePlayerContainer(
 fun WorkoutVideoPlayerContainer(
     segment: WorkoutSegment?,
     onSegmentEnded: (WorkoutSegment) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    autoPlay: Boolean = false,
+    continuousPlay: Boolean = false,
+    onToggleContinuousPlay: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     var forceYouTubeMode by remember { mutableStateOf(false) }
@@ -116,22 +125,26 @@ fun WorkoutVideoPlayerContainer(
         }
     }
 
-    val isLocalActive = localVideoFile != null
-
     Column(modifier = modifier.fillMaxWidth()) {
         if (localVideoFile != null) {
             LocalExoPlayerView(
                 segment = segment,
                 videoFile = localVideoFile,
                 onSegmentEnded = onSegmentEnded,
-                onFallbackToYouTube = { forceYouTubeMode = true }
+                onFallbackToYouTube = { forceYouTubeMode = true },
+                autoPlay = autoPlay,
+                continuousPlay = continuousPlay,
+                onToggleContinuousPlay = onToggleContinuousPlay
             )
         } else {
             YouTubeFallbackPlayerView(
                 segment = segment,
                 onSegmentEnded = onSegmentEnded,
                 hasLocalOption = forceYouTubeMode,
-                onReturnToLocal = { forceYouTubeMode = false }
+                onReturnToLocal = { forceYouTubeMode = false },
+                autoPlay = autoPlay,
+                continuousPlay = continuousPlay,
+                onToggleContinuousPlay = onToggleContinuousPlay
             )
         }
     }
@@ -146,7 +159,10 @@ fun LocalExoPlayerView(
     segment: WorkoutSegment?,
     videoFile: File,
     onSegmentEnded: (WorkoutSegment) -> Unit,
-    onFallbackToYouTube: () -> Unit
+    onFallbackToYouTube: () -> Unit,
+    autoPlay: Boolean = false,
+    continuousPlay: Boolean = false,
+    onToggleContinuousPlay: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -158,33 +174,46 @@ fun LocalExoPlayerView(
     }
 
     var isPlaying by remember { mutableStateOf(false) }
-    var currentPosMs by remember { mutableLongStateOf(0L) }
     var loadedSegmentId by remember { mutableStateOf<String?>(null) }
+    var hasTriggeredEndForCurrentSegment by remember { mutableStateOf(false) }
 
     // Prepare media and seek when segment changes
-    LaunchedEffect(segment?.id, videoFile) {
-        if (segment != null && loadedSegmentId != segment.id) {
-            loadedSegmentId = segment.id
-            val mediaItem = MediaItem.fromUri(Uri.fromFile(videoFile))
-            exoPlayer.setMediaItem(mediaItem)
-            exoPlayer.prepare()
-            val startMs = (segment.startSeconds * 1000).toLong()
-            exoPlayer.seekTo(startMs)
-            exoPlayer.playWhenReady = false
-            isPlaying = false
+    LaunchedEffect(segment?.id, videoFile, autoPlay) {
+        if (segment != null) {
+            val isNewSegment = loadedSegmentId != segment.id
+            if (isNewSegment) {
+                loadedSegmentId = segment.id
+                hasTriggeredEndForCurrentSegment = false
+                val mediaItem = MediaItem.fromUri(Uri.fromFile(videoFile))
+                exoPlayer.setMediaItem(mediaItem)
+                exoPlayer.prepare()
+                val startMs = (segment.startSeconds * 1000).toLong()
+                exoPlayer.seekTo(startMs)
+            }
+
+            if (autoPlay) {
+                exoPlayer.play()
+                isPlaying = true
+            } else if (isNewSegment) {
+                exoPlayer.playWhenReady = false
+                isPlaying = false
+            }
         }
     }
 
-    // Monitor position and stop when reaching segment endSeconds
-    LaunchedEffect(isPlaying, segment?.id) {
+    // Monitor position and handle segment end vs continuous play
+    LaunchedEffect(isPlaying, segment?.id, continuousPlay) {
         while (isPlaying && segment != null) {
             val currentSec = exoPlayer.currentPosition / 1000f
-            currentPosMs = exoPlayer.currentPosition
-            if (currentSec >= segment.endSeconds) {
-                exoPlayer.pause()
-                isPlaying = false
+            if (currentSec >= segment.endSeconds && !hasTriggeredEndForCurrentSegment) {
+                hasTriggeredEndForCurrentSegment = true
                 onSegmentEnded(segment)
-                break
+                if (!continuousPlay) {
+                    // Only pause if continuous play is disabled
+                    exoPlayer.pause()
+                    isPlaying = false
+                    break
+                }
             }
             delay(150)
         }
@@ -227,7 +256,7 @@ fun LocalExoPlayerView(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Video Viewport with Offline Badge
+        // Video Viewport with Badges Overlay
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -280,6 +309,41 @@ fun LocalExoPlayerView(
                     )
                 }
             }
+
+            // Continuous Mode Toggle Pill (Top Right)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(DarkBackground.copy(alpha = 0.85f))
+                    .border(
+                        1.dp,
+                        if (continuousPlay) ElectricCyan else DarkSurfaceBorder,
+                        RoundedCornerShape(6.dp)
+                    )
+                    .clickable { onToggleContinuousPlay(!continuousPlay) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (continuousPlay) Icons.Default.AllInclusive else Icons.Default.Timer,
+                        contentDescription = null,
+                        tint = if (continuousPlay) ElectricCyan else TextSecondary,
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (continuousPlay) "CONTINUOUS" else "STOP AT END",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = if (continuousPlay) ElectricCyan else TextSecondary,
+                            fontSize = 9.sp,
+                            letterSpacing = 0.4.sp
+                        )
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -298,14 +362,9 @@ fun LocalExoPlayerView(
                             exoPlayer.pause()
                             isPlaying = false
                         } else {
-                            segment?.let { seg ->
-                                val curSec = exoPlayer.currentPosition / 1000f
-                                if (curSec >= seg.endSeconds || curSec < seg.startSeconds) {
-                                    exoPlayer.seekTo((seg.startSeconds * 1000).toLong())
-                                }
-                                exoPlayer.play()
-                                isPlaying = true
-                            }
+                            // If user explicitly presses Play, let it play forward naturally without resetting
+                            exoPlayer.play()
+                            isPlaying = true
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -328,10 +387,11 @@ fun LocalExoPlayerView(
                     )
                 }
 
-                // Restart Segment Button
+                // Restart Segment Button (Only this explicitly jumps back to startSeconds)
                 OutlinedButton(
                     onClick = {
                         segment?.let { seg ->
+                            hasTriggeredEndForCurrentSegment = false
                             exoPlayer.seekTo((seg.startSeconds * 1000).toLong())
                             exoPlayer.play()
                             isPlaying = true
@@ -350,10 +410,8 @@ fun LocalExoPlayerView(
                 // Rewind 5s
                 OutlinedButton(
                     onClick = {
-                        segment?.let { seg ->
-                            val targetMs = (exoPlayer.currentPosition - 5000L).coerceAtLeast((seg.startSeconds * 1000).toLong())
-                            exoPlayer.seekTo(targetMs)
-                        }
+                        val targetMs = (exoPlayer.currentPosition - 5000L).coerceAtLeast(0L)
+                        exoPlayer.seekTo(targetMs)
                     },
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
@@ -390,7 +448,10 @@ fun YouTubeFallbackPlayerView(
     segment: WorkoutSegment?,
     onSegmentEnded: (WorkoutSegment) -> Unit,
     hasLocalOption: Boolean = false,
-    onReturnToLocal: () -> Unit = {}
+    onReturnToLocal: () -> Unit = {},
+    autoPlay: Boolean = false,
+    continuousPlay: Boolean = false,
+    onToggleContinuousPlay: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -398,7 +459,7 @@ fun YouTubeFallbackPlayerView(
     var activePlayer by remember { mutableStateOf<YouTubePlayer?>(null) }
     var loadedSegmentId by remember { mutableStateOf<String?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
-    var playerError by remember { mutableStateOf<String?>(null) }
+    var hasTriggeredEndForCurrentSegment by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(
@@ -430,11 +491,16 @@ fun YouTubeFallbackPlayerView(
                         initialize(object : AbstractYouTubePlayerListener() {
                             override fun onReady(youTubePlayer: YouTubePlayer) {
                                 activePlayer = youTubePlayer
-                                playerError = null
                                 segment?.let { seg ->
                                     loadedSegmentId = seg.id
-                                    youTubePlayer.cueVideo(seg.videoId, seg.startSeconds)
-                                    isPlaying = false
+                                    hasTriggeredEndForCurrentSegment = false
+                                    if (autoPlay) {
+                                        youTubePlayer.loadVideo(seg.videoId, seg.startSeconds)
+                                        isPlaying = true
+                                    } else {
+                                        youTubePlayer.cueVideo(seg.videoId, seg.startSeconds)
+                                        isPlaying = false
+                                    }
                                 }
                             }
 
@@ -450,19 +516,15 @@ fun YouTubeFallbackPlayerView(
 
                             override fun onCurrentSecond(youTubePlayer: YouTubePlayer, second: Float) {
                                 segment?.let { currentSeg ->
-                                    if (second >= currentSeg.endSeconds) {
-                                        youTubePlayer.pause()
-                                        isPlaying = false
+                                    if (second >= currentSeg.endSeconds && !hasTriggeredEndForCurrentSegment) {
+                                        hasTriggeredEndForCurrentSegment = true
                                         onSegmentEnded(currentSeg)
+                                        if (!continuousPlay) {
+                                            youTubePlayer.pause()
+                                            isPlaying = false
+                                        }
                                     }
                                 }
-                            }
-
-                            override fun onError(
-                                youTubePlayer: YouTubePlayer,
-                                error: PlayerConstants.PlayerError
-                            ) {
-                                playerError = "Playback issue: ${error.name}"
                             }
                         }, options)
                     }
@@ -471,9 +533,14 @@ fun YouTubeFallbackPlayerView(
                     if (segment != null && activePlayer != null) {
                         if (loadedSegmentId != segment.id) {
                             loadedSegmentId = segment.id
-                            playerError = null
-                            activePlayer?.cueVideo(segment.videoId, segment.startSeconds)
-                            isPlaying = false
+                            hasTriggeredEndForCurrentSegment = false
+                            if (autoPlay) {
+                                activePlayer?.loadVideo(segment.videoId, segment.startSeconds)
+                                isPlaying = true
+                            } else {
+                                activePlayer?.cueVideo(segment.videoId, segment.startSeconds)
+                                isPlaying = false
+                            }
                         }
                     }
                 },
@@ -515,6 +582,41 @@ fun YouTubeFallbackPlayerView(
                     )
                 }
             }
+
+            // Continuous Mode Toggle Pill (Top Right)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(DarkBackground.copy(alpha = 0.85f))
+                    .border(
+                        1.dp,
+                        if (continuousPlay) ElectricCyan else DarkSurfaceBorder,
+                        RoundedCornerShape(6.dp)
+                    )
+                    .clickable { onToggleContinuousPlay(!continuousPlay) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (continuousPlay) Icons.Default.AllInclusive else Icons.Default.Timer,
+                        contentDescription = null,
+                        tint = if (continuousPlay) ElectricCyan else TextSecondary,
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (continuousPlay) "CONTINUOUS" else "STOP AT END",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = if (continuousPlay) ElectricCyan else TextSecondary,
+                            fontSize = 9.sp,
+                            letterSpacing = 0.4.sp
+                        )
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -534,10 +636,8 @@ fun YouTubeFallbackPlayerView(
                                 player.pause()
                                 isPlaying = false
                             } else {
-                                segment?.let { seg ->
-                                    player.play()
-                                    isPlaying = true
-                                }
+                                player.play()
+                                isPlaying = true
                             }
                         }
                     },
@@ -565,6 +665,7 @@ fun YouTubeFallbackPlayerView(
                 OutlinedButton(
                     onClick = {
                         segment?.let { seg ->
+                            hasTriggeredEndForCurrentSegment = false
                             activePlayer?.seekTo(seg.startSeconds)
                             activePlayer?.play()
                             isPlaying = true
@@ -612,7 +713,7 @@ fun YouTubeFallbackPlayerView(
                 border = androidx.compose.foundation.BorderStroke(1.dp, DarkSurfaceBorder),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
             ) {
-                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp), tint = AmberGold)
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp), tint = AmberGold)
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Open YouTube", fontSize = 11.sp, color = TextSecondary)
             }

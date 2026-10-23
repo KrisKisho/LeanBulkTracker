@@ -19,10 +19,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PlayArrow
@@ -38,6 +40,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,7 +55,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.leanbulk.tracker.data.model.MesocyclePhase
 import com.leanbulk.tracker.data.model.ProgressiveOverloadEngine
 import com.leanbulk.tracker.data.model.WorkoutSegment
+import com.leanbulk.tracker.ui.components.OfflineVideosDialog
 import com.leanbulk.tracker.ui.components.YouTubePlayerContainer
+import kotlinx.coroutines.launch
 import com.leanbulk.tracker.ui.theme.AmberGold
 import com.leanbulk.tracker.ui.theme.DarkBackground
 import com.leanbulk.tracker.ui.theme.DarkSurfaceBorder
@@ -68,8 +76,18 @@ fun WorkoutScreen(
     viewModel: WorkoutViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+    var autoPlaySegmentId by remember { mutableStateOf<String?>(null) }
+    var isContinuousPlay by remember { mutableStateOf(false) }
+    var showOfflineVideosDialog by remember { mutableStateOf(false) }
+
+    if (showOfflineVideosDialog) {
+        OfflineVideosDialog(onDismiss = { showOfflineVideosDialog = false })
+    }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
@@ -81,7 +99,8 @@ fun WorkoutScreen(
             // Profile & Streak Banner
             WorkoutHeader(
                 streak = state.streak,
-                selectedDay = state.selectedDay
+                selectedDay = state.selectedDay,
+                onOpenOfflineVideos = { showOfflineVideosDialog = true }
             )
         }
 
@@ -114,11 +133,14 @@ fun WorkoutScreen(
         }
 
         item {
-            // Embedded YouTube Video Player for Active Segment
+            // Embedded YouTube / Local Video Player for Active Segment
             if (state.activeSegment != null) {
                 ActiveSegmentPlayerCard(
                     segment = state.activeSegment!!,
-                    onSegmentEnded = { viewModel.onSegmentFinished(it) }
+                    onSegmentEnded = { viewModel.onSegmentFinished(it) },
+                    autoPlay = autoPlaySegmentId == state.activeSegment?.id,
+                    continuousPlay = isContinuousPlay,
+                    onToggleContinuousPlay = { isContinuousPlay = it }
                 )
             }
         }
@@ -142,6 +164,13 @@ fun WorkoutScreen(
                 isActive = isActive,
                 activeCycleWeek = state.activeCycleWeek,
                 onSelect = { viewModel.selectSegment(segment) },
+                onPlay = {
+                    viewModel.selectSegment(segment)
+                    autoPlaySegmentId = segment.id
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(4)
+                    }
+                },
                 onToggleComplete = { isChecked ->
                     viewModel.toggleSegmentCompletion(segment, isChecked)
                 },
@@ -163,14 +192,15 @@ fun WorkoutScreen(
 @Composable
 fun WorkoutHeader(
     streak: Int,
-    selectedDay: DayOfWeek
+    selectedDay: DayOfWeek,
+    onOpenOfflineVideos: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "Lean Bulk Workout",
                 style = MaterialTheme.typography.headlineMedium.copy(
@@ -184,29 +214,58 @@ fun WorkoutHeader(
             )
         }
 
-        // Streak Pill
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(AmberGold.copy(alpha = 0.15f))
-                .border(1.dp, AmberGold.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.LocalFireDepartment,
-                    contentDescription = "Streak",
-                    tint = AmberGold,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "$streak Day${if (streak == 1) "" else "s"}",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = AmberGold
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Offline Videos Pill
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(NeonLime.copy(alpha = 0.15f))
+                    .border(1.dp, NeonLime.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                    .clickable { onOpenOfflineVideos() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.DownloadDone,
+                        contentDescription = "Offline Videos",
+                        tint = NeonLime,
+                        modifier = Modifier.size(15.dp)
                     )
-                )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Videos",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = NeonLime
+                        )
+                    )
+                }
+            }
+
+            // Streak Pill
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(AmberGold.copy(alpha = 0.15f))
+                    .border(1.dp, AmberGold.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.LocalFireDepartment,
+                        contentDescription = "Streak",
+                        tint = AmberGold,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "$streak Day${if (streak == 1) "" else "s"}",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = AmberGold
+                        )
+                    )
+                }
             }
         }
     }
@@ -512,7 +571,10 @@ fun WorkoutOverviewCard(
 @Composable
 fun ActiveSegmentPlayerCard(
     segment: WorkoutSegment,
-    onSegmentEnded: (WorkoutSegment) -> Unit
+    onSegmentEnded: (WorkoutSegment) -> Unit,
+    autoPlay: Boolean = false,
+    continuousPlay: Boolean = false,
+    onToggleContinuousPlay: (Boolean) -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -585,7 +647,10 @@ fun ActiveSegmentPlayerCard(
             // Embedded Video Player
             YouTubePlayerContainer(
                 segment = segment,
-                onSegmentEnded = onSegmentEnded
+                onSegmentEnded = onSegmentEnded,
+                autoPlay = autoPlay,
+                continuousPlay = continuousPlay,
+                onToggleContinuousPlay = onToggleContinuousPlay
             )
 
             if (segment.note.isNotEmpty()) {
@@ -608,6 +673,7 @@ fun SegmentListItem(
     isActive: Boolean,
     activeCycleWeek: Int,
     onSelect: () -> Unit,
+    onPlay: () -> Unit = onSelect,
     onToggleComplete: (Boolean) -> Unit,
     onOverloadChange: (Float, Int, Int, String) -> Unit = { _, _, _, _ -> },
     onApplyUpgrade: (Float) -> Unit = {}
@@ -714,7 +780,7 @@ fun SegmentListItem(
                 }
 
                 IconButton(
-                    onClick = onSelect,
+                    onClick = onPlay,
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
