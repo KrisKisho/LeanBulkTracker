@@ -5,10 +5,14 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.leanbulk.tracker.MainActivity
+import com.leanbulk.tracker.R
 
 object NotificationHelper {
 
@@ -25,6 +29,24 @@ object NotificationHelper {
             }
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun getAppIconBitmap(context: Context): Bitmap? {
+        return try {
+            val drawable = ContextCompat.getDrawable(context, R.drawable.ic_launcher)
+                ?: ContextCompat.getDrawable(context, R.drawable.ic_launcher_foreground)
+                ?: return null
+
+            val density = context.resources.displayMetrics.density
+            val size = (density * 64).toInt().coerceAtLeast(64)
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            bitmap
+        } catch (_: Throwable) {
+            null
         }
     }
 
@@ -47,13 +69,19 @@ object NotificationHelper {
         )
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFF00E5FF.toInt()) // Electric Cyan brand color tint
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+
+        val appIcon = getAppIconBitmap(context)
+        if (appIcon != null) {
+            builder.setLargeIcon(appIcon)
+        }
 
         try {
             val notificationManager = NotificationManagerCompat.from(context)
