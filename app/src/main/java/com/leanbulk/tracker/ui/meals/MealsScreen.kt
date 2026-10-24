@@ -29,9 +29,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -361,6 +360,14 @@ fun MealChecklistItem(
                             )
                         }
 
+                        VegNonVegBadge(
+                            isVeg = meal.isVeg,
+                            size = 14.dp,
+                            modifier = if (meal.hasVegOption) {
+                                Modifier.clickable { onVegToggle(!meal.isVeg) }
+                            } else Modifier
+                        )
+
                         Text(
                             text = meal.mealName,
                             style = MaterialTheme.typography.titleMedium.copy(
@@ -510,30 +517,26 @@ fun MealChecklistItem(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (meal.isVeg) NeonLime.copy(alpha = 0.2f) else DarkBackground)
+                                .background((if (meal.isVeg) NeonLime else CoralRed).copy(alpha = 0.15f))
                                 .border(
                                     1.dp,
-                                    if (meal.isVeg) NeonLime else CoralRed.copy(alpha = 0.6f),
+                                    (if (meal.isVeg) NeonLime else CoralRed).copy(alpha = 0.5f),
                                     RoundedCornerShape(10.dp)
                                 )
                                 .clickable { onVegToggle(!meal.isVeg) }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .padding(horizontal = 8.dp, vertical = 5.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                VegNonVegBadge(isVeg = meal.isVeg, size = 14.dp)
                                 Icon(
-                                    imageVector = if (meal.isVeg) Icons.Default.Eco else Icons.Default.Restaurant,
-                                    contentDescription = "Toggle Veg",
+                                    imageVector = Icons.Default.SwapHoriz,
+                                    contentDescription = if (meal.isVeg) "Switch to Non-Veg" else "Switch to Veg",
                                     tint = if (meal.isVeg) NeonLime else CoralRed,
                                     modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (meal.isVeg) "Veg" else "Non-Veg",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (meal.isVeg) NeonLime else CoralRed,
-                                        fontSize = 11.sp
-                                    )
                                 )
                             }
                         }
@@ -541,5 +544,34 @@ fun MealChecklistItem(
                 }
             }
         }
+    }
+}
+
+
+/**
+ * Authentic Indian Food Dietary Mark:
+ * Green square with centered green circle for Vegetarian.
+ * Red/Coral square with centered red/coral circle for Non-Vegetarian.
+ */
+@Composable
+fun VegNonVegBadge(
+    isVeg: Boolean,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 14.dp
+) {
+    val badgeColor = if (isVeg) NeonLime else CoralRed
+    Box(
+        modifier = modifier
+            .size(size)
+            .border(1.5.dp, badgeColor, RoundedCornerShape(3.dp))
+            .padding(size * 0.22f),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(badgeColor)
+        )
     }
 }
