@@ -31,7 +31,16 @@ data class UserProfileEntity(
     val startNeckInches: Float = 13.8f,
     val startThighInches: Float = 19.5f,
     val startCalfInches: Float = 13.0f,
-    val equipment: String = "Single 4 kg Dumbbell + Bodyweight"
+    val equipment: String = "Single 4 kg Dumbbell + Bodyweight",
+    // Autonomous Adaptive Coaching State
+    val autoAdaptEnabled: Boolean = true,
+    val adaptiveCalorieOffset: Int = 0,
+    val splitShakeModeActive: Boolean = false,
+    val dailyStepGoal: Int = 6000,
+    val workoutStartTimeHour: Int = 19,
+    val workoutStartTimeMinute: Int = 30,
+    val currentRollingSplitIndex: Int = 0,
+    val lastAdaptationEvalDate: String = ""
 ) {
     fun toModel(): UserProfile = UserProfile(
         id = id,
@@ -58,7 +67,15 @@ data class UserProfileEntity(
         startNeckInches = startNeckInches,
         startThighInches = startThighInches,
         startCalfInches = startCalfInches,
-        equipment = equipment
+        equipment = equipment,
+        autoAdaptEnabled = autoAdaptEnabled,
+        adaptiveCalorieOffset = adaptiveCalorieOffset,
+        splitShakeModeActive = splitShakeModeActive,
+        dailyStepGoal = dailyStepGoal,
+        workoutStartTimeHour = workoutStartTimeHour,
+        workoutStartTimeMinute = workoutStartTimeMinute,
+        currentRollingSplitIndex = currentRollingSplitIndex,
+        lastAdaptationEvalDate = lastAdaptationEvalDate
     )
 
     companion object {
@@ -87,7 +104,15 @@ data class UserProfileEntity(
             startNeckInches = model.startNeckInches,
             startThighInches = model.startThighInches,
             startCalfInches = model.startCalfInches,
-            equipment = model.equipment
+            equipment = model.equipment,
+            autoAdaptEnabled = model.autoAdaptEnabled,
+            adaptiveCalorieOffset = model.adaptiveCalorieOffset,
+            splitShakeModeActive = model.splitShakeModeActive,
+            dailyStepGoal = model.dailyStepGoal,
+            workoutStartTimeHour = model.workoutStartTimeHour,
+            workoutStartTimeMinute = model.workoutStartTimeMinute,
+            currentRollingSplitIndex = model.currentRollingSplitIndex,
+            lastAdaptationEvalDate = model.lastAdaptationEvalDate
         )
     }
 }

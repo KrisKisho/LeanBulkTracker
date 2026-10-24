@@ -31,8 +31,27 @@ data class UserProfile(
     val dailyCarbsTargetG: Int = 345,
     val dailyFatTargetG: Int = 62,
     val minWeeklyGainKg: Float = 0.25f,
-    val maxWeeklyGainKg: Float = 0.35f
+    val maxWeeklyGainKg: Float = 0.35f,
+    // Autonomous Adaptive Coaching State
+    val autoAdaptEnabled: Boolean = true,
+    val adaptiveCalorieOffset: Int = 0,
+    val splitShakeModeActive: Boolean = false,
+    val dailyStepGoal: Int = 6000,
+    val workoutStartTimeHour: Int = 19,
+    val workoutStartTimeMinute: Int = 30,
+    val currentRollingSplitIndex: Int = 0,
+    val lastAdaptationEvalDate: String = ""
 ) {
     val startingWeightKg: Float get() = startWeightKg
     val targetWeightKg: Float get() = goalWeightKg
+
+    /**
+     * Waist to Height Ratio (WHtR).
+     * Values > 0.48 indicate increased abdominal visceral adiposity requiring guardrail trim.
+     */
+    val whtr: Float
+        get() = (currentWaistInches * 2.54f) / heightCm.coerceAtLeast(100f)
+
+    val effectiveBaseCalories: Int
+        get() = dailyCaloriesTarget + adaptiveCalorieOffset
 }

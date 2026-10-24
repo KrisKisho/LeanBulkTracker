@@ -5,6 +5,10 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.leanbulk.tracker.data.local.AppDatabase
+import com.leanbulk.tracker.data.local.entity.AdaptationLogEntity
+import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
+import com.leanbulk.tracker.data.model.AdaptiveCoachEngine
+import com.leanbulk.tracker.data.model.AdaptiveStatusInfo
 import com.leanbulk.tracker.data.model.BodyDimensionCalculator
 import com.leanbulk.tracker.data.model.BodyForecastResult
 import com.leanbulk.tracker.data.model.CoachingInsight
@@ -26,7 +30,10 @@ data class ProgressUiState(
     val entries: List<WeightEntry> = emptyList(),
     val coachingInsight: CoachingInsight = CoachingInsight.evaluate(emptyList()),
     val showLogDialog: Boolean = false,
-    val showEditProfileDialog: Boolean = false
+    val showEditProfileDialog: Boolean = false,
+    val adaptationLogs: List<AdaptationLogEntity> = emptyList(),
+    val adaptiveStatus: AdaptiveStatusInfo = AdaptiveCoachEngine.extractStatusInfo(UserProfile(), emptyList()),
+    val isEvaluatingAdaptation: Boolean = false
 ) {
     val latestEntry: WeightEntry?
         get() = entries.maxByOrNull { it.date }
@@ -46,24 +53,31 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
     private val _showLogDialog = MutableStateFlow(false)
     private val _showEditProfileDialog = MutableStateFlow(false)
+    private val _isEvaluatingAdaptation = MutableStateFlow(false)
 
     init {
         viewModelScope.launch {
             try {
                 profileRepository.ensureDefaultProfileSeeded()
                 weightRepository.removeSampleData()
+                AdaptiveCoachEngine.evaluateAndAdapt(db, application, force = false)
             } catch (e: Exception) {
                 Log.e("ProgressViewModel", "Error initializing progress data", e)
             }
         }
     }
 
+    private val dialogsFlow = combine(_showLogDialog, _showEditProfileDialog, _isEvaluatingAdaptation) { showLog, showEdit, isEval ->
+        Triple(showLog, showEdit, isEval)
+    }
+
     val uiState: StateFlow<ProgressUiState> = combine(
         profileRepository.getUserProfile(),
         weightRepository.getAllEntries(),
-        _showLogDialog,
-        _showEditProfileDialog
-    ) { profile, entries, showLog, showEditProfile ->
+        db.adaptationLogDao().getAllLogs(),
+        dialogsFlow
+    ) { profile, entries, logs, dialogs ->
+        val (showLog, showEditProfile, isEvaluating) = dialogs
         val latest = entries.maxByOrNull { it.date }
         val effectiveProfile = profile.copy(
             currentWeightKg = latest?.weightKg ?: profile.currentWeightKg,
@@ -72,13 +86,27 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         val forecast = BodyDimensionCalculator.calculate(effectiveProfile)
         val insight = CoachingInsight.evaluate(entries)
 
+        val rawWeightEntities = entries.map {
+            WeightProgressEntity(
+                id = it.id,
+                date = it.date.toString(),
+                weightKg = it.weightKg,
+                waistInches = it.waistInches,
+                notes = it.notes
+            )
+        }
+        val statusInfo = AdaptiveCoachEngine.extractStatusInfo(effectiveProfile, rawWeightEntities)
+
         ProgressUiState(
             userProfile = effectiveProfile,
             forecast = forecast,
             entries = entries,
             coachingInsight = insight,
             showLogDialog = showLog,
-            showEditProfileDialog = showEditProfile
+            showEditProfileDialog = showEditProfile,
+            adaptationLogs = logs,
+            adaptiveStatus = statusInfo,
+            isEvaluatingAdaptation = isEvaluating
         )
     }.stateIn(
         viewModelScope,
@@ -107,8 +135,33 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             try {
                 profileRepository.updateProfile(profile)
                 closeEditProfileDialog()
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = false)
             } catch (e: Exception) {
                 Log.e("ProgressViewModel", "Error updating profile", e)
+            }
+        }
+    }
+
+    fun toggleAutoAdapt(enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                val updated = uiState.value.userProfile.copy(autoAdaptEnabled = enabled)
+                profileRepository.updateProfile(updated)
+            } catch (e: Exception) {
+                Log.e("ProgressViewModel", "Error toggling auto adapt", e)
+            }
+        }
+    }
+
+    fun runAdaptationCheckNow() {
+        viewModelScope.launch {
+            _isEvaluatingAdaptation.value = true
+            try {
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = true)
+            } catch (e: Exception) {
+                Log.e("ProgressViewModel", "Error evaluating adaptation", e)
+            } finally {
+                _isEvaluatingAdaptation.value = false
             }
         }
     }
@@ -120,6 +173,8 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                 profileRepository.updateCurrentWeight(weightKg)
                 profileRepository.updateCurrentWaist(waistInches)
                 closeLogDialog()
+                // Auto-evaluate immediately after any new weigh-in!
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = false)
             } catch (e: Exception) {
                 Log.e("ProgressViewModel", "Error logging weight", e)
             }

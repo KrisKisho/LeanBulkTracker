@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.leanbulk.tracker.data.local.AppDatabase
+import com.leanbulk.tracker.data.local.entity.AdaptationLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyHabitLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyMealLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyWorkoutLogEntity
@@ -31,7 +32,8 @@ data class BackupSummary(
     val mealLogsCount: Int = 0,
     val workoutLogsCount: Int = 0,
     val remindersCount: Int = 0,
-    val habitsCount: Int = 0
+    val habitsCount: Int = 0,
+    val adaptationLogsCount: Int = 0
 )
 
 class DataBackupManager(private val database: AppDatabase) {
@@ -71,6 +73,14 @@ class DataBackupManager(private val database: AppDatabase) {
                 put("startNeckInches", profile.startNeckInches.toDouble())
                 put("startThighInches", profile.startThighInches.toDouble())
                 put("startCalfInches", profile.startCalfInches.toDouble())
+                put("autoAdaptEnabled", profile.autoAdaptEnabled)
+                put("adaptiveCalorieOffset", profile.adaptiveCalorieOffset)
+                put("splitShakeModeActive", profile.splitShakeModeActive)
+                put("dailyStepGoal", profile.dailyStepGoal)
+                put("workoutStartTimeHour", profile.workoutStartTimeHour)
+                put("workoutStartTimeMinute", profile.workoutStartTimeMinute)
+                put("currentRollingSplitIndex", profile.currentRollingSplitIndex)
+                put("lastAdaptationEvalDate", profile.lastAdaptationEvalDate)
             }
             root.put("userProfile", pObj)
         }
@@ -184,6 +194,23 @@ class DataBackupManager(private val database: AppDatabase) {
         }
         root.put("habitLogs", habitArr)
 
+        // 7. Adaptation Logs
+        val adaptationLogs = database.adaptationLogDao().getAllLogsSync()
+        val adaptationArr = JSONArray()
+        adaptationLogs.forEach { a ->
+            val aObj = JSONObject().apply {
+                put("id", a.id)
+                put("date", a.date)
+                put("category", a.category)
+                put("title", a.title)
+                put("reason", a.reason)
+                put("parameterChanged", a.parameterChanged)
+                put("timestampMillis", a.timestampMillis)
+            }
+            adaptationArr.put(aObj)
+        }
+        root.put("adaptationLogs", adaptationArr)
+
         root.toString(2)
     }
 
@@ -248,7 +275,15 @@ class DataBackupManager(private val database: AppDatabase) {
                     startForearmInches = pObj.optDouble("startForearmInches", pObj.optDouble("currentForearmInches", 10.2)).toFloat(),
                     startNeckInches = pObj.optDouble("startNeckInches", pObj.optDouble("currentNeckInches", 13.8)).toFloat(),
                     startThighInches = pObj.optDouble("startThighInches", pObj.optDouble("currentThighInches", 19.5)).toFloat(),
-                    startCalfInches = pObj.optDouble("startCalfInches", pObj.optDouble("currentCalfInches", 13.0)).toFloat()
+                    startCalfInches = pObj.optDouble("startCalfInches", pObj.optDouble("currentCalfInches", 13.0)).toFloat(),
+                    autoAdaptEnabled = pObj.optBoolean("autoAdaptEnabled", true),
+                    adaptiveCalorieOffset = pObj.optInt("adaptiveCalorieOffset", 0),
+                    splitShakeModeActive = pObj.optBoolean("splitShakeModeActive", false),
+                    dailyStepGoal = pObj.optInt("dailyStepGoal", 6000),
+                    workoutStartTimeHour = pObj.optInt("workoutStartTimeHour", 19),
+                    workoutStartTimeMinute = pObj.optInt("workoutStartTimeMinute", 30),
+                    currentRollingSplitIndex = pObj.optInt("currentRollingSplitIndex", 0),
+                    lastAdaptationEvalDate = pObj.optString("lastAdaptationEvalDate", "")
                 )
                 database.userProfileDao().upsertUserProfile(entity)
                 profileImported = true
@@ -421,6 +456,31 @@ class DataBackupManager(private val database: AppDatabase) {
                 habitCount = arr.length()
             }
 
+            // 7. Restore Adaptation Logs
+            var adaptationCount = 0
+            if (root.has("adaptationLogs")) {
+                val arr = root.getJSONArray("adaptationLogs")
+                val list = mutableListOf<AdaptationLogEntity>()
+                for (i in 0 until arr.length()) {
+                    val a = arr.getJSONObject(i)
+                    list.add(
+                        AdaptationLogEntity(
+                            id = a.optLong("id", 0L),
+                            date = a.getString("date"),
+                            category = a.getString("category"),
+                            title = a.getString("title"),
+                            reason = a.getString("reason"),
+                            parameterChanged = a.getString("parameterChanged"),
+                            timestampMillis = a.optLong("timestampMillis", System.currentTimeMillis())
+                        )
+                    )
+                }
+                if (list.isNotEmpty()) {
+                    database.adaptationLogDao().insertAll(list)
+                    adaptationCount = list.size
+                }
+            }
+
             BackupSummary(
                 success = true,
                 message = "Backup restored successfully!",
@@ -429,7 +489,8 @@ class DataBackupManager(private val database: AppDatabase) {
                 mealLogsCount = mealCount,
                 workoutLogsCount = workoutCount,
                 remindersCount = reminderCount,
-                habitsCount = habitCount
+                habitsCount = habitCount,
+                adaptationLogsCount = adaptationCount
             )
         } catch (e: Exception) {
             BackupSummary(

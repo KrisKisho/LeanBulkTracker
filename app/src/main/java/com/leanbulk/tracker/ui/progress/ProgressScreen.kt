@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.leanbulk.tracker.data.model.UserProfile
 import com.leanbulk.tracker.data.model.WeightEntry
+import com.leanbulk.tracker.ui.components.AdaptiveCoachStatusCard
 import com.leanbulk.tracker.ui.components.BodyDimensionForecastCard
 import com.leanbulk.tracker.ui.components.DataBackupCard
 import com.leanbulk.tracker.ui.components.SmartCoachingCard
@@ -149,6 +150,17 @@ fun ProgressScreen(
                     }
                 }
             }
+        }
+
+        item {
+            // Autonomous Closed-Loop Coaching Status & History Card
+            AdaptiveCoachStatusCard(
+                status = state.adaptiveStatus,
+                adaptationLogs = state.adaptationLogs,
+                onToggleAutoAdapt = { viewModel.toggleAutoAdapt(it) },
+                onRunAdaptationCheck = { viewModel.runAdaptationCheckNow() },
+                isEvaluating = state.isEvaluatingAdaptation
+            )
         }
 
         item {

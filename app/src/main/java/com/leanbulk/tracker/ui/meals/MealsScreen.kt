@@ -58,6 +58,7 @@ import com.leanbulk.tracker.data.model.MealDataSource
 import com.leanbulk.tracker.data.model.MealItem
 import com.leanbulk.tracker.ui.components.LiveHealthSyncCard
 import com.leanbulk.tracker.ui.components.NutritionSummaryCard
+import com.leanbulk.tracker.ui.components.AdaptiveCoachStatusCard
 import com.leanbulk.tracker.ui.components.RecoveryHydrationCard
 import com.leanbulk.tracker.ui.theme.AmberGold
 import com.leanbulk.tracker.ui.theme.CoralRed
@@ -229,6 +230,17 @@ fun MealsScreen(
                 targetCarbs = state.targetCarbs,
                 currentFat = state.consumedFat,
                 targetFat = state.targetFat
+            )
+        }
+
+        item {
+            // Autonomous Closed-Loop Coaching Status & History Card
+            AdaptiveCoachStatusCard(
+                status = state.adaptiveStatus,
+                adaptationLogs = state.adaptationLogs,
+                onToggleAutoAdapt = { viewModel.toggleAutoAdapt(it) },
+                onRunAdaptationCheck = { viewModel.runAdaptationCheckNow() },
+                isEvaluating = state.isEvaluatingAdaptation
             )
         }
 

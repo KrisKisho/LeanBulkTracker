@@ -19,7 +19,9 @@ data class DynamicNutritionTarget(
     val fatTargetGrams: Int,
     val carbTargetGrams: Int,
     val excessBurnKcal: Int,
-    val topUpRecommendation: SouthIndianTopUp?
+    val topUpRecommendation: SouthIndianTopUp?,
+    val adaptiveCalorieOffset: Int = 0,
+    val isWaistGuardrailActive: Boolean = false
 )
 
 data class SouthIndianTopUp(
@@ -82,18 +84,22 @@ object DynamicNutritionEngine {
 
         val totalTodayTDEE = baseSedentaryBurn + stepBurn + workoutBurn
 
-        // Step 5: Dynamic Surplus Target ((WeeklyGain * 7700) / 7)
+        // Step 5: Dynamic Surplus Target ((WeeklyGain * 7700) / 7) + Adaptive Offset
         val dailySurplus = ((profile.targetWeeklyGainKg * 7700f) / 7f).roundToInt()
-        val dynamicCalorieTarget = totalTodayTDEE + dailySurplus
+        val adaptiveOffset = if (profile.autoAdaptEnabled) profile.adaptiveCalorieOffset else 0
+        val dynamicCalorieTarget = totalTodayTDEE + dailySurplus + adaptiveOffset
 
-        // Step 6: Dynamic Macros
-        val proteinTarget = (weight * 2.0f).roundToInt()
+        // Step 6: Dynamic Macros (2.15g/kg protein if Waist Guardrail / WHtR alert is active)
+        val isWaistGuardrailActive = profile.autoAdaptEnabled && (profile.adaptiveCalorieOffset < 0 || profile.whtr > 0.48f)
+        val proteinMultiplier = if (isWaistGuardrailActive) 2.15f else 2.0f
+        val proteinTarget = (weight * proteinMultiplier).roundToInt()
         val fatTarget = (weight * 1.05f).roundToInt()
         val carbTarget = ((dynamicCalorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).coerceAtLeast(100)
 
         // Step 7: South Indian Top-Up recommendations
-        // Triggers cleanly at ~9,500–10,000 steps on training days whenever dynamicCalorieTarget - 2420 >= 150
-        val excess = dynamicCalorieTarget - 2420
+        // Triggers cleanly at ~9,500–10,000 steps on training days whenever dynamicCalorieTarget - (2420 + adaptiveOffset) >= 150
+        val baseTarget = 2420 + adaptiveOffset
+        val excess = dynamicCalorieTarget - baseTarget
         val topUp = when {
             excess in 150..249 -> SouthIndianTopUp(
                 title = "Banana & Peanut Butter Top-Up",
@@ -136,7 +142,9 @@ object DynamicNutritionEngine {
             fatTargetGrams = fatTarget,
             carbTargetGrams = carbTarget,
             excessBurnKcal = excess,
-            topUpRecommendation = topUp
+            topUpRecommendation = topUp,
+            adaptiveCalorieOffset = adaptiveOffset,
+            isWaistGuardrailActive = isWaistGuardrailActive
         )
     }
 }

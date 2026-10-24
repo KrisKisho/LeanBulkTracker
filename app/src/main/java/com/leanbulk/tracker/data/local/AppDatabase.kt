@@ -6,12 +6,14 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.leanbulk.tracker.data.local.dao.AdaptationLogDao
 import com.leanbulk.tracker.data.local.dao.HabitDao
 import com.leanbulk.tracker.data.local.dao.MealDao
 import com.leanbulk.tracker.data.local.dao.ReminderDao
 import com.leanbulk.tracker.data.local.dao.UserProfileDao
 import com.leanbulk.tracker.data.local.dao.WeightDao
 import com.leanbulk.tracker.data.local.dao.WorkoutDao
+import com.leanbulk.tracker.data.local.entity.AdaptationLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyHabitLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyMealLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyWorkoutLogEntity
@@ -28,9 +30,10 @@ import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
         ReminderEntity::class,
         UserProfileEntity::class,
         DailyHabitLogEntity::class,
-        MealTemplateEntity::class
+        MealTemplateEntity::class,
+        AdaptationLogEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reminderDao(): ReminderDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun habitDao(): HabitDao
+    abstract fun adaptationLogDao(): AdaptationLogDao
 
     companion object {
         @Volatile
@@ -85,6 +89,35 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add adaptive coaching state to user_profile
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN autoAdaptEnabled INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN adaptiveCalorieOffset INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN splitShakeModeActive INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN dailyStepGoal INTEGER NOT NULL DEFAULT 6000")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN workoutStartTimeHour INTEGER NOT NULL DEFAULT 19")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN workoutStartTimeMinute INTEGER NOT NULL DEFAULT 30")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN currentRollingSplitIndex INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN lastAdaptationEvalDate TEXT NOT NULL DEFAULT ''")
+
+                // Create adaptation_logs table
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `adaptation_logs` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `category` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `reason` TEXT NOT NULL,
+                        `parameterChanged` TEXT NOT NULL,
+                        `timestampMillis` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -92,7 +125,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lean_bulk_tracker.db"
                 )
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

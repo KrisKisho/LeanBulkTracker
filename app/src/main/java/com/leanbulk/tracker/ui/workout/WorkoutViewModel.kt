@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.leanbulk.tracker.data.local.AppDatabase
+import com.leanbulk.tracker.data.model.AdaptiveCoachEngine
 import com.leanbulk.tracker.data.model.DayWorkoutPlan
 import com.leanbulk.tracker.data.model.MesocyclePhase
 import com.leanbulk.tracker.data.model.WorkoutDataSource
@@ -30,7 +31,10 @@ data class WorkoutUiState(
     val activeSegment: WorkoutSegment? = null,
     val completedDates: List<String> = emptyList(),
     val streak: Int = 0,
-    val activeCycleWeek: Int = 1
+    val activeCycleWeek: Int = 1,
+    val isShifted: Boolean = false,
+    val shiftedFromDay: DayOfWeek? = null,
+    val isDeloadRecommended: Boolean = false
 ) {
     val activeMesocyclePhase: MesocyclePhase
         get() = MesocyclePhase.fromWeek(activeCycleWeek)
@@ -45,22 +49,35 @@ data class WorkoutUiState(
         get() = if (totalSegments > 0) completedSegmentsCount.toFloat() / totalSegments else 0f
 }
 
+private data class AdaptiveWorkoutState(
+    val isShifted: Boolean,
+    val shiftedFromDay: DayOfWeek?,
+    val isDeloadRecommended: Boolean
+)
+
 private data class WorkoutMeta(
     val day: DayOfWeek,
     val activeSegId: String?,
     val completedDates: List<String>,
     val streak: Int,
-    val cycleWeek: Int
+    val cycleWeek: Int,
+    val isShifted: Boolean,
+    val shiftedFromDay: DayOfWeek?,
+    val isDeloadRecommended: Boolean
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = WorkoutRepository(AppDatabase.getInstance(application).workoutDao())
+    private val db = AppDatabase.getInstance(application)
+    private val repository = WorkoutRepository(db.workoutDao())
 
     private val _selectedDay = MutableStateFlow(LocalDate.now().dayOfWeek)
     private val _activeSegmentId = MutableStateFlow<String?>(null)
     private val _activeCycleWeek = MutableStateFlow(1)
+    private val _isShifted = MutableStateFlow(false)
+    private val _shiftedFromDay = MutableStateFlow<DayOfWeek?>(null)
+    private val _isDeloadRecommended = MutableStateFlow(false)
     private var hasUserOverriddenWeek = false
 
     init {
@@ -78,6 +95,38 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+
+        // Loop C: Check Missed Workout Auto-Shift and Deload Condition
+        viewModelScope.launch {
+            try {
+                val today = LocalDate.now()
+                val adaptiveDay = AdaptiveCoachEngine.getAdaptivePlanDay(db, today)
+                if (adaptiveDay != today.dayOfWeek) {
+                    _selectedDay.value = adaptiveDay
+                    _shiftedFromDay.value = adaptiveDay
+                    _isShifted.value = true
+                }
+
+                // Check 2 consecutive near-failure failed rep deload
+                val recentLogs = db.workoutDao().getAllWorkoutLogsSync()
+                    .filter { it.isCompleted && it.completedAtMillis > 0 }
+                    .sortedByDescending { it.completedAtMillis }
+                val failedCount = recentLogs.take(2).count {
+                    it.effortRating == "Near Failure" && it.set3RepsAchieved < it.repsPerSet
+                }
+                if (failedCount >= 2) {
+                    _isDeloadRecommended.value = true
+                }
+
+                AdaptiveCoachEngine.evaluateAndAdapt(db, application, force = false)
+            } catch (e: Exception) {
+                Log.e("WorkoutViewModel", "Error in workout adaptive evaluation", e)
+            }
+        }
+    }
+
+    private val adaptiveFlow = combine(_isShifted, _shiftedFromDay, _isDeloadRecommended) { isShifted, shifted, isDeload ->
+        AdaptiveWorkoutState(isShifted, shifted, isDeload)
     }
 
     val uiState: StateFlow<WorkoutUiState> = combine(
@@ -85,9 +134,18 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         _activeSegmentId,
         repository.getCompletedDates(),
         repository.getStreakFlow(),
-        _activeCycleWeek
-    ) { day, activeSegId, completedDates, streak, cycleWeek ->
-        WorkoutMeta(day, activeSegId, completedDates, streak, cycleWeek)
+        combine(_activeCycleWeek, adaptiveFlow) { week, adaptive -> week to adaptive }
+    ) { day, activeSegId, completedDates, streak, (cycleWeek, adaptive) ->
+        WorkoutMeta(
+            day = day,
+            activeSegId = activeSegId,
+            completedDates = completedDates,
+            streak = streak,
+            cycleWeek = cycleWeek,
+            isShifted = adaptive.isShifted,
+            shiftedFromDay = adaptive.shiftedFromDay,
+            isDeloadRecommended = adaptive.isDeloadRecommended
+        )
     }.flatMapLatest { meta ->
         repository.getPlanWithStatus(LocalDate.now(), meta.day, meta.cycleWeek).map { planWithStatus ->
             val activeSeg = planWithStatus.segments.find { it.id == meta.activeSegId }
@@ -101,7 +159,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 activeSegment = activeSeg,
                 completedDates = meta.completedDates,
                 streak = meta.streak,
-                activeCycleWeek = meta.cycleWeek
+                activeCycleWeek = meta.cycleWeek,
+                isShifted = meta.isShifted,
+                shiftedFromDay = meta.shiftedFromDay,
+                isDeloadRecommended = meta.isDeloadRecommended
             )
         }
     }.stateIn(
@@ -125,6 +186,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         _activeCycleWeek.value = week.coerceIn(1, 4)
     }
 
+    fun resetToNaturalDay() {
+        val today = LocalDate.now().dayOfWeek
+        _selectedDay.value = today
+        _isShifted.value = false
+        val plan = WorkoutDataSource.getPlanForDay(today)
+        _activeSegmentId.value = plan.segments.firstOrNull()?.id
+    }
+
     fun toggleSegmentCompletion(segment: WorkoutSegment, isCompleted: Boolean) {
         viewModelScope.launch {
             try {
@@ -135,6 +204,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     activeCycleWeek = _activeCycleWeek.value
                 )
                 com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
+                // Auto-evaluate closed-loop coaching (chronotype & adherence updates)
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = false)
             } catch (e: Exception) {
                 Log.e("WorkoutViewModel", "Error toggling segment completion", e)
             }
@@ -151,14 +222,17 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     activeCycleWeek = _activeCycleWeek.value
                 )
                 com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = false)
+
+                // Advance to next uncompleted segment if available
                 val currentPlan = uiState.value.plan
                 val currentIndex = currentPlan.segments.indexOfFirst { it.id == segment.id }
-                if (currentIndex in 0 until currentPlan.segments.size - 1) {
-                    val nextSeg = currentPlan.segments[currentIndex + 1]
-                    _activeSegmentId.value = nextSeg.id
+                if (currentIndex >= 0 && currentIndex < currentPlan.segments.size - 1) {
+                    val nextSegment = currentPlan.segments[currentIndex + 1]
+                    _activeSegmentId.value = nextSegment.id
                 }
             } catch (e: Exception) {
-                Log.e("WorkoutViewModel", "Error handling segment finished", e)
+                Log.e("WorkoutViewModel", "Error finishing segment", e)
             }
         }
     }
@@ -177,6 +251,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     progressionWeek = _activeCycleWeek.value
                 )
                 com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = false)
             } catch (e: Exception) {
                 Log.e("WorkoutViewModel", "Error updating overload", e)
             }
@@ -195,6 +270,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 _activeCycleWeek.value = 1
                 hasUserOverriddenWeek = true
                 com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = false)
             } catch (e: Exception) {
                 Log.e("WorkoutViewModel", "Error applying weight upgrade", e)
             }

@@ -7,6 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.leanbulk.tracker.data.health.HealthSyncData
 import com.leanbulk.tracker.data.health.HealthSyncManager
 import com.leanbulk.tracker.data.local.AppDatabase
+import com.leanbulk.tracker.data.local.entity.AdaptationLogEntity
+import com.leanbulk.tracker.data.model.AdaptiveCoachEngine
+import com.leanbulk.tracker.data.model.AdaptiveMealResizer
+import com.leanbulk.tracker.data.model.AdaptiveStatusInfo
 import com.leanbulk.tracker.data.model.DynamicNutritionEngine
 import com.leanbulk.tracker.data.model.DynamicNutritionTarget
 import com.leanbulk.tracker.data.model.MealDataSource
@@ -38,7 +42,10 @@ data class MealsUiState(
     val nutritionTarget: DynamicNutritionTarget = DynamicNutritionEngine.calculate(UserProfile(), 4500, 135),
     val showAddDialog: Boolean = false,
     val waterGlasses: Int = 0,
-    val sleepHours: Float = 0.0f
+    val sleepHours: Float = 0.0f,
+    val adaptiveStatus: AdaptiveStatusInfo = AdaptiveCoachEngine.extractStatusInfo(UserProfile(), emptyList()),
+    val adaptationLogs: List<AdaptationLogEntity> = emptyList(),
+    val isEvaluatingAdaptation: Boolean = false
 ) {
     val targetCalories: Int
         get() = nutritionTarget.dynamicCalorieTarget
@@ -77,6 +84,7 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     private val _showAddDialog = MutableStateFlow(false)
+    private val _isEvaluatingAdaptation = MutableStateFlow(false)
     private val _customizingMeal = MutableStateFlow<MealItem?>(null)
     val customizingMeal: StateFlow<MealItem?> = _customizingMeal.asStateFlow()
 
@@ -85,6 +93,7 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 profileRepository.ensureDefaultProfileSeeded()
                 mealRepository.ensureDefaultMealsSeeded(_selectedDate.value)
+                AdaptiveCoachEngine.evaluateAndAdapt(db, application, force = false)
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error seeding meals or profile", e)
             }
@@ -102,8 +111,10 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
         combine(
             mealRepository.getMealsForDate(meta.date),
             workoutDao.getWorkoutLogsForDate(meta.date.toString()),
-            habitRepository.getTodayHabit(meta.date)
-        ) { meals, workoutLogs, habitLog ->
+            habitRepository.getTodayHabit(meta.date),
+            db.adaptationLogDao().getAllLogs(),
+            _isEvaluatingAdaptation
+        ) { rawMeals, workoutLogs, habitLog, logs, isEvaluating ->
             val dayPlan = WorkoutDataSource.getWeeklyPlans()[meta.date.dayOfWeek]
             val totalSegments = dayPlan?.segments?.size ?: 5
             val completedSegments = workoutLogs.count { it.isCompleted }
@@ -119,15 +130,22 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
                 includePlannedWorkoutInTarget = true
             )
 
+            val weightLogs = db.weightDao().getAllWeightLogsSync()
+            val adaptedMeals = AdaptiveMealResizer.adaptMeals(rawMeals, meta.profile)
+            val statusInfo = AdaptiveCoachEngine.extractStatusInfo(meta.profile, weightLogs)
+
             MealsUiState(
                 date = meta.date,
-                meals = meals,
+                meals = adaptedMeals,
                 userProfile = meta.profile,
                 syncData = meta.syncData,
                 nutritionTarget = nutritionTarget,
                 showAddDialog = meta.showDialog,
                 waterGlasses = habitLog?.waterGlasses ?: 0,
-                sleepHours = habitLog?.sleepHours ?: 0.0f
+                sleepHours = habitLog?.sleepHours ?: 0.0f,
+                adaptiveStatus = statusInfo,
+                adaptationLogs = logs,
+                isEvaluatingAdaptation = isEvaluating
             )
         }
     }.stateIn(
@@ -188,8 +206,34 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 mealRepository.toggleMealChecked(_selectedDate.value, meal, isChecked)
                 com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
+                // Auto-evaluate closed-loop coaching after meal check-off
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = false)
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error toggling meal checked", e)
+            }
+        }
+    }
+
+    fun toggleAutoAdapt(enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                val updated = uiState.value.userProfile.copy(autoAdaptEnabled = enabled)
+                profileRepository.updateProfile(updated)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error toggling auto adapt", e)
+            }
+        }
+    }
+
+    fun runAdaptationCheckNow() {
+        viewModelScope.launch {
+            _isEvaluatingAdaptation.value = true
+            try {
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = true)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error evaluating adaptation", e)
+            } finally {
+                _isEvaluatingAdaptation.value = false
             }
         }
     }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Checkbox
@@ -64,6 +65,7 @@ import com.leanbulk.tracker.ui.theme.DarkSurfaceBorder
 import com.leanbulk.tracker.ui.theme.DarkSurfaceElevated
 import com.leanbulk.tracker.ui.theme.ElectricCyan
 import com.leanbulk.tracker.ui.theme.NeonLime
+import com.leanbulk.tracker.ui.theme.PurpleAccent
 import com.leanbulk.tracker.ui.theme.TextMuted
 import com.leanbulk.tracker.ui.theme.TextPrimary
 import com.leanbulk.tracker.ui.theme.TextSecondary
@@ -102,6 +104,18 @@ fun WorkoutScreen(
                 selectedDay = state.selectedDay,
                 onOpenOfflineVideos = { showOfflineVideosDialog = true }
             )
+        }
+
+        if (state.isShifted || state.isDeloadRecommended) {
+            item {
+                AdaptiveWorkoutCoachBanner(
+                    isShifted = state.isShifted,
+                    shiftedFromDay = state.shiftedFromDay,
+                    isDeloadRecommended = state.isDeloadRecommended,
+                    onResetToNaturalDay = { viewModel.resetToNaturalDay() },
+                    onSelectDeloadWeek = { viewModel.selectCycleWeek(1) }
+                )
+            }
         }
 
         item {
@@ -1093,6 +1107,159 @@ fun SegmentListItem(
                                 )
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun AdaptiveWorkoutCoachBanner(
+    isShifted: Boolean,
+    shiftedFromDay: DayOfWeek?,
+    isDeloadRecommended: Boolean,
+    onResetToNaturalDay: () -> Unit,
+    onSelectDeloadWeek: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (isShifted && shiftedFromDay != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(DarkSurfaceElevated)
+                    .border(1.5.dp, PurpleAccent.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                    .padding(14.dp)
+            ) {
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(PurpleAccent.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FitnessCenter,
+                                    contentDescription = null,
+                                    tint = PurpleAccent,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Workout Auto-Shift Active",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+
+                        Text(
+                            text = "48h Guard",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PurpleAccent
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Yesterday's missed ${shiftedFromDay.name.lowercase().replaceFirstChar { it.uppercase() }} workout was automatically queued for today to preserve your weekly volume. 48h fatigue lock active.",
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        lineHeight = 16.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = onResetToNaturalDay,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = PurpleAccent
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PurpleAccent.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "Revert to Today's Split (${java.time.LocalDate.now().dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }})",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+
+        if (isDeloadRecommended) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(DarkSurfaceElevated)
+                    .border(1.5.dp, AmberGold.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                    .padding(14.dp)
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(AmberGold.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Speed,
+                                contentDescription = null,
+                                tint = AmberGold,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Deload Recommended: Form Fatigue",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "You logged near failure and missed rep targets across 2 consecutive sessions. Form fatigue detected. Switch to Week 1 Neuromuscular Groove tempo (3-1-1) with -20% volume to recover.",
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        lineHeight = 16.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    androidx.compose.material3.Button(
+                        onClick = onSelectDeloadWeek,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = AmberGold,
+                            contentColor = DarkBackground
+                        )
+                    ) {
+                        Text(
+                            text = "Switch to Week 1 Deload",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

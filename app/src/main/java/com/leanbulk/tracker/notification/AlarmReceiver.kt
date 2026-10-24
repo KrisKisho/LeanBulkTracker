@@ -29,20 +29,34 @@ class AlarmReceiver : BroadcastReceiver() {
         val hour = intent.getIntExtra(EXTRA_HOUR, 8)
         val minute = intent.getIntExtra(EXTRA_MINUTE, 0)
 
-        // If this is the workout reminder (id 105), customize message with today's day & workout title
-        if (id == 105) {
+        var shouldNotify = true
+
+        // If this is the sedentary reminder (id 108), check step threshold
+        if (id == 108) {
+            val prefs = context.getSharedPreferences("health_sync_prefs", Context.MODE_PRIVATE)
+            val todayStr = LocalDate.now().toString()
+            val steps = if (prefs.getString("steps_date", "") == todayStr) prefs.getInt("daily_steps", 0) else 0
+            if (steps >= 1500) {
+                shouldNotify = false
+            } else {
+                title = "Sedentary Check"
+                message = "Logged only $steps steps so far. Take a 15-min walk to stay on track for your 6,000+ step goal."
+            }
+        } else if (id == 105) {
             val today = LocalDate.now().dayOfWeek
             val plan = WorkoutDataSource.getPlanForDay(today)
             title = "Workout Time: ${today.name.lowercase().replaceFirstChar { it.uppercase() }}"
             message = "Today's ${plan.title} segments are ready! Grab your 4kg dumbbell."
         }
 
-        NotificationHelper.showNotification(
-            context = context,
-            notificationId = id,
-            title = title,
-            message = message
-        )
+        if (shouldNotify) {
+            NotificationHelper.showNotification(
+                context = context,
+                notificationId = id,
+                title = title,
+                message = message
+            )
+        }
 
         // Reschedule next occurrence
         val reminderItem = ReminderItem(
