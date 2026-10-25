@@ -5,6 +5,9 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import com.leanbulk.tracker.data.local.AppDatabase
 import com.leanbulk.tracker.data.local.entity.AdaptationLogEntity
+import com.leanbulk.tracker.data.local.entity.CustomFoodEntity
+import com.leanbulk.tracker.data.local.entity.SavedMealComboEntity
+import com.leanbulk.tracker.data.model.FoodCategory
 import com.leanbulk.tracker.data.local.entity.DailyHabitLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyMealLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyWorkoutLogEntity
@@ -33,7 +36,9 @@ data class BackupSummary(
     val workoutLogsCount: Int = 0,
     val remindersCount: Int = 0,
     val habitsCount: Int = 0,
-    val adaptationLogsCount: Int = 0
+    val adaptationLogsCount: Int = 0,
+    val customFoodsCount: Int = 0,
+    val savedCombosCount: Int = 0
 )
 
 class DataBackupManager(private val database: AppDatabase) {
@@ -210,6 +215,48 @@ class DataBackupManager(private val database: AppDatabase) {
             adaptationArr.put(aObj)
         }
         root.put("adaptationLogs", adaptationArr)
+
+        // 8. Custom Foods
+        val customFoods = database.customFoodDao().getAllCustomFoodsSync()
+        val customFoodsArr = JSONArray()
+        customFoods.forEach { cf ->
+            val cfObj = JSONObject().apply {
+                put("id", cf.id)
+                put("name", cf.name)
+                put("teluguOrRegionalHint", cf.teluguOrRegionalHint)
+                put("category", cf.category)
+                put("servingUnit", cf.servingUnit)
+                put("calories", cf.calories)
+                put("proteinGrams", cf.proteinGrams.toDouble())
+                put("carbsGrams", cf.carbsGrams.toDouble())
+                put("fatGrams", cf.fatGrams.toDouble())
+                put("isVegetarian", cf.isVegetarian)
+                put("isHighProteinPatch", cf.isHighProteinPatch)
+                put("createdAtMillis", cf.createdAtMillis)
+            }
+            customFoodsArr.put(cfObj)
+        }
+        root.put("customFoods", customFoodsArr)
+
+        // 9. Saved Meal Combos
+        val savedCombos = database.savedMealComboDao().getAllSavedCombosSync()
+        val combosArr = JSONArray()
+        savedCombos.forEach { sc ->
+            val scObj = JSONObject().apply {
+                put("id", sc.id)
+                put("name", sc.name)
+                put("targetMealSlotId", sc.targetMealSlotId)
+                put("totalCalories", sc.totalCalories)
+                put("totalProtein", sc.totalProtein.toDouble())
+                put("totalCarbs", sc.totalCarbs.toDouble())
+                put("totalFat", sc.totalFat.toDouble())
+                put("isVegetarian", sc.isVegetarian)
+                put("itemsJson", sc.itemsJson)
+                put("createdAtMillis", sc.createdAtMillis)
+            }
+            combosArr.put(scObj)
+        }
+        root.put("savedMealCombos", combosArr)
 
         root.toString(2)
     }
@@ -481,6 +528,64 @@ class DataBackupManager(private val database: AppDatabase) {
                 }
             }
 
+            // 8. Restore Custom Foods
+            var customCount = 0
+            if (root.has("customFoods")) {
+                val arr = root.getJSONArray("customFoods")
+                val list = mutableListOf<CustomFoodEntity>()
+                for (i in 0 until arr.length()) {
+                    val cf = arr.getJSONObject(i)
+                    list.add(
+                        CustomFoodEntity(
+                            id = cf.optString("id", "custom_${System.currentTimeMillis()}_$i"),
+                            name = cf.getString("name"),
+                            teluguOrRegionalHint = cf.optString("teluguOrRegionalHint", ""),
+                            category = cf.optString("category", FoodCategory.CUSTOM.name),
+                            servingUnit = cf.optString("servingUnit", "1 serving"),
+                            calories = cf.optInt("calories", 0),
+                            proteinGrams = cf.optDouble("proteinGrams", 0.0).toFloat(),
+                            carbsGrams = cf.optDouble("carbsGrams", 0.0).toFloat(),
+                            fatGrams = cf.optDouble("fatGrams", 0.0).toFloat(),
+                            isVegetarian = cf.optBoolean("isVegetarian", true),
+                            isHighProteinPatch = cf.optBoolean("isHighProteinPatch", false),
+                            createdAtMillis = cf.optLong("createdAtMillis", System.currentTimeMillis())
+                        )
+                    )
+                }
+                if (list.isNotEmpty()) {
+                    database.customFoodDao().upsertCustomFoods(list)
+                    customCount = list.size
+                }
+            }
+
+            // 9. Restore Saved Meal Combos
+            var comboCount = 0
+            if (root.has("savedMealCombos")) {
+                val arr = root.getJSONArray("savedMealCombos")
+                val list = mutableListOf<SavedMealComboEntity>()
+                for (i in 0 until arr.length()) {
+                    val sc = arr.getJSONObject(i)
+                    list.add(
+                        SavedMealComboEntity(
+                            id = sc.optString("id", "combo_${System.currentTimeMillis()}_$i"),
+                            name = sc.getString("name"),
+                            targetMealSlotId = sc.optString("targetMealSlotId", ""),
+                            totalCalories = sc.optInt("totalCalories", 0),
+                            totalProtein = sc.optDouble("totalProtein", 0.0).toFloat(),
+                            totalCarbs = sc.optDouble("totalCarbs", 0.0).toFloat(),
+                            totalFat = sc.optDouble("totalFat", 0.0).toFloat(),
+                            isVegetarian = sc.optBoolean("isVegetarian", true),
+                            itemsJson = sc.optString("itemsJson", "[]"),
+                            createdAtMillis = sc.optLong("createdAtMillis", System.currentTimeMillis())
+                        )
+                    )
+                }
+                if (list.isNotEmpty()) {
+                    database.savedMealComboDao().upsertCombos(list)
+                    comboCount = list.size
+                }
+            }
+
             BackupSummary(
                 success = true,
                 message = "Backup restored successfully!",
@@ -490,7 +595,9 @@ class DataBackupManager(private val database: AppDatabase) {
                 workoutLogsCount = workoutCount,
                 remindersCount = reminderCount,
                 habitsCount = habitCount,
-                adaptationLogsCount = adaptationCount
+                adaptationLogsCount = adaptationCount,
+                customFoodsCount = customCount,
+                savedCombosCount = comboCount
             )
         } catch (e: Exception) {
             BackupSummary(

@@ -4,42 +4,65 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 enum class FoodCategory(val displayName: String) {
-    GRAINS("Grains & Staples"),
-    DALS_CURRIES("Dals & Curries"),
-    MEAT_EGGS("Chicken, Eggs & Fish"),
-    DAIRY("Milk & Dairy"),
-    PROTEIN_POWDER("Protein Powder"),
-    FATS_EXTRAS("Fats, Nuts & Extras"),
-    VEGGIES("Sides & Vegetables"),
-    CUSTOM("Custom")
+    TIFFINS_BREADS("Tiffins & Breads"),
+    RICE_GRAINS("Rice & Grains"),
+    DALS_SAMBAR_RASAM("Dals, Sambar & Rasam"),
+    NON_VEG_EGGS("Non-Veg & Eggs"),
+    VEG_PROTEIN_BOOSTERS("Veg Protein Boosters"),
+    VEPUDU_PORIYAL("Vepudu & Poriyal"),
+    CHUTNEYS_PODIS_FATS("Chutneys, Podis & Fats"),
+    DAIRY_SHAKES_SUPPLEMENTS("Dairy, Shakes & Supplements"),
+    CUSTOM("Custom"),
+    // Legacy aliases for backward compatibility:
+    GRAINS("Rice & Grains"),
+    DALS_CURRIES("Dals, Sambar & Rasam"),
+    MEAT_EGGS("Non-Veg & Eggs"),
+    DAIRY("Dairy, Shakes & Supplements"),
+    PROTEIN_POWDER("Dairy, Shakes & Supplements"),
+    FATS_EXTRAS("Chutneys, Podis & Fats"),
+    VEGGIES("Vepudu & Poriyal")
 }
 
 data class FoodItem(
     val id: String,
     val name: String,
+    val teluguOrRegionalHint: String = "",
     val category: FoodCategory,
-    val unit: String,
-    val baseServingSize: Float,
-    val caloriesPerBase: Float,
-    val proteinPerBase: Float,
-    val carbsPerBase: Float,
-    val fatPerBase: Float,
-    val stepSize: Float,
-    val isVeg: Boolean = true
+    val servingUnit: String = "1 serving",
+    val calories: Int = 0,
+    val proteinGrams: Float = 0f,
+    val carbsGrams: Float = 0f,
+    val fatGrams: Float = 0f,
+    val isVegetarian: Boolean = true,
+    val isHighProteinPatch: Boolean = false,
+    val unit: String = servingUnit,
+    val baseServingSize: Float = 1.0f,
+    val caloriesPerBase: Float = if (calories > 0) calories.toFloat() else 0f,
+    val proteinPerBase: Float = proteinGrams,
+    val carbsPerBase: Float = carbsGrams,
+    val fatPerBase: Float = fatGrams,
+    val stepSize: Float = 0.5f,
+    val isVeg: Boolean = isVegetarian
 ) {
     fun calculateMacros(quantity: Float): MealIngredient {
-        val factor = if (baseServingSize > 0f) quantity / baseServingSize else 0f
+        val effectiveBase = if (baseServingSize > 0f) baseServingSize else 1.0f
+        val factor = quantity / effectiveBase
+        val effectiveCals = if (calories > 0) (calories * factor).toInt() else (caloriesPerBase * factor).toInt()
+        val effectiveProtein = if (proteinGrams > 0f) (proteinGrams * factor) else (proteinPerBase * factor)
+        val effectiveCarbs = if (carbsGrams > 0f) (carbsGrams * factor) else (carbsPerBase * factor)
+        val effectiveFat = if (fatGrams > 0f) (fatGrams * factor) else (fatPerBase * factor)
+
         return MealIngredient(
             foodItemId = id,
-            name = name,
+            name = if (teluguOrRegionalHint.isNotBlank()) "$name ($teluguOrRegionalHint)" else name,
             quantity = quantity,
             unit = unit,
-            calories = (caloriesPerBase * factor).toInt(),
-            protein = (proteinPerBase * factor * 10).toInt() / 10f,
-            carbs = (carbsPerBase * factor * 10).toInt() / 10f,
-            fat = (fatPerBase * factor * 10).toInt() / 10f,
+            calories = effectiveCals,
+            protein = (effectiveProtein * 10).toInt() / 10f,
+            carbs = (effectiveCarbs * 10).toInt() / 10f,
+            fat = (effectiveFat * 10).toInt() / 10f,
             category = category,
-            isVeg = isVeg
+            isVeg = isVegetarian
         )
     }
 }
@@ -615,7 +638,7 @@ object FoodCatalog {
         )
     )
 
-    fun findById(id: String): FoodItem? = items.find { it.id == id }
+    fun findById(id: String): FoodItem? = SouthIndianFoodCatalog.findById(id) ?: items.find { it.id == id }
 
     fun getDefaultIngredientsForMeal(mealId: String, isVeg: Boolean): List<MealIngredient> {
         return when (mealId) {

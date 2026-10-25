@@ -8,6 +8,8 @@ import com.leanbulk.tracker.data.health.HealthSyncData
 import com.leanbulk.tracker.data.health.HealthSyncManager
 import com.leanbulk.tracker.data.local.AppDatabase
 import com.leanbulk.tracker.data.local.entity.AdaptationLogEntity
+import com.leanbulk.tracker.data.local.entity.CustomFoodEntity
+import com.leanbulk.tracker.data.local.entity.SavedMealComboEntity
 import com.leanbulk.tracker.data.model.AdaptiveCoachEngine
 import com.leanbulk.tracker.data.model.AdaptiveMealResizer
 import com.leanbulk.tracker.data.model.AdaptiveStatusInfo
@@ -87,6 +89,12 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
     private val _isEvaluatingAdaptation = MutableStateFlow(false)
     private val _customizingMeal = MutableStateFlow<MealItem?>(null)
     val customizingMeal: StateFlow<MealItem?> = _customizingMeal.asStateFlow()
+
+    val customFoods: StateFlow<List<CustomFoodEntity>> = db.customFoodDao().getAllCustomFoods()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val savedCombos: StateFlow<List<SavedMealComboEntity>> = db.savedMealComboDao().getAllSavedCombos()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         viewModelScope.launch {
@@ -322,6 +330,46 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
                 com.leanbulk.tracker.widget.LeanBulkWidgetUpdater.update(getApplication())
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error adding custom meal", e)
+            }
+        }
+    }
+
+    fun saveCustomFood(food: CustomFoodEntity) {
+        viewModelScope.launch {
+            try {
+                db.customFoodDao().insertCustomFood(food)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error saving custom food", e)
+            }
+        }
+    }
+
+    fun deleteCustomFood(id: String) {
+        viewModelScope.launch {
+            try {
+                db.customFoodDao().deleteCustomFood(id)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error deleting custom food", e)
+            }
+        }
+    }
+
+    fun saveMealCombo(combo: SavedMealComboEntity) {
+        viewModelScope.launch {
+            try {
+                db.savedMealComboDao().insertCombo(combo)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error saving meal combo", e)
+            }
+        }
+    }
+
+    fun deleteMealCombo(id: String) {
+        viewModelScope.launch {
+            try {
+                db.savedMealComboDao().deleteCombo(id)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error deleting meal combo", e)
             }
         }
     }

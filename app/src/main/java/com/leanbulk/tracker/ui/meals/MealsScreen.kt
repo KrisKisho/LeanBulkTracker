@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,6 +79,8 @@ fun MealsScreen(
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     val customizingMeal by viewModel.customizingMeal.collectAsState()
+    val customFoods by viewModel.customFoods.collectAsState()
+    val savedCombos by viewModel.savedCombos.collectAsState()
 
     val stepPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -100,18 +104,56 @@ fun MealsScreen(
         )
     }
 
-    // Interactive Meal Customizer Dialog
+    // Interactive South Indian Meal Plate Builder Sheet
     customizingMeal?.let { mealToCustomize ->
-        CustomizeMealDialog(
+        val slotTargetCalories = remember(mealToCustomize.id, state.targetCalories) {
+            val ratio = when (mealToCustomize.id) {
+                "meal_breakfast" -> 520f / 2420f
+                "meal_shake" -> 490f / 2420f
+                "meal_lunch" -> 570f / 2420f
+                "meal_snack" -> 310f / 2420f
+                "meal_dinner" -> 530f / 2420f
+                else -> if (mealToCustomize.defaultCalories > 0) mealToCustomize.defaultCalories.toFloat() / 2420f else 0.2f
+            }
+            (state.targetCalories * ratio).toInt().coerceAtLeast(100)
+        }
+        val slotTargetProtein = remember(mealToCustomize.id, state.targetProtein) {
+            val ratio = when (mealToCustomize.id) {
+                "meal_breakfast" -> 26f / 136f
+                "meal_shake" -> 36f / 136f
+                "meal_lunch" -> 38f / 136f
+                "meal_snack" -> 13f / 136f
+                "meal_dinner" -> 23f / 136f
+                else -> if (mealToCustomize.defaultProtein > 0) mealToCustomize.defaultProtein.toFloat() / 136f else 0.2f
+            }
+            (state.targetProtein * ratio).coerceAtLeast(10f)
+        }
+
+        MealPlateBuilderSheet(
             meal = mealToCustomize,
+            slotTargetCalories = slotTargetCalories,
+            slotTargetProtein = slotTargetProtein,
+            customFoods = customFoods,
+            savedCombos = savedCombos,
             onDismiss = { viewModel.closeCustomizeDialog() },
-            onSave = { ingredients, saveAsTemplate ->
+            onApplyPlate = { ingredients, saveAsTemplate ->
                 viewModel.customizeMeal(mealToCustomize.id, ingredients, saveAsTemplate)
-                Toast.makeText(context, "Updated ${mealToCustomize.mealName} macros!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Applied plate to ${mealToCustomize.mealName}!", Toast.LENGTH_SHORT).show()
             },
             onResetToDefault = {
                 viewModel.resetMealToDefault(mealToCustomize.id)
                 Toast.makeText(context, "Reset ${mealToCustomize.mealName} to default", Toast.LENGTH_SHORT).show()
+            },
+            onSaveCustomFood = { customFood ->
+                viewModel.saveCustomFood(customFood)
+                Toast.makeText(context, "Saved ${customFood.name} to Database", Toast.LENGTH_SHORT).show()
+            },
+            onSaveMealCombo = { combo ->
+                viewModel.saveMealCombo(combo)
+                Toast.makeText(context, "Saved combo '${combo.name}'", Toast.LENGTH_SHORT).show()
+            },
+            onDeleteMealCombo = { comboId ->
+                viewModel.deleteMealCombo(comboId)
             }
         )
     }
@@ -483,7 +525,7 @@ fun MealChecklistItem(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Customize / Edit Button
+                    // Customize / Build Plate Button
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
@@ -495,14 +537,14 @@ fun MealChecklistItem(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Customize meal",
+                                imageVector = Icons.Default.Restaurant,
+                                contentDescription = "Customize / Build Plate",
                                 tint = ElectricCyan,
                                 modifier = Modifier.size(12.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Customize",
+                                text = "Build Plate",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = ElectricCyan,

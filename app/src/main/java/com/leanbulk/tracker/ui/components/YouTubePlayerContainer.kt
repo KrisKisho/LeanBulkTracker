@@ -27,13 +27,18 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -68,6 +73,7 @@ import com.leanbulk.tracker.data.video.LocalVideoManager
 import com.leanbulk.tracker.ui.theme.AmberGold
 import com.leanbulk.tracker.ui.theme.DarkBackground
 import com.leanbulk.tracker.ui.theme.DarkSurfaceBorder
+import com.leanbulk.tracker.ui.theme.DarkSurfaceElevated
 import com.leanbulk.tracker.ui.theme.ElectricCyan
 import com.leanbulk.tracker.ui.theme.NeonLime
 import com.leanbulk.tracker.ui.theme.TextPrimary
@@ -176,6 +182,7 @@ fun LocalExoPlayerView(
     var isPlaying by remember { mutableStateOf(false) }
     var loadedSegmentId by remember { mutableStateOf<String?>(null) }
     var hasTriggeredEndForCurrentSegment by remember { mutableStateOf(false) }
+    var isFullscreen by remember { mutableStateOf(false) }
 
     // Prepare media and seek when segment changes
     LaunchedEffect(segment?.id, videoFile, autoPlay) {
@@ -344,6 +351,37 @@ fun LocalExoPlayerView(
                     )
                 }
             }
+
+            // Fullscreen Quick Action Pill (Bottom Right)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(DarkBackground.copy(alpha = 0.85f))
+                    .border(1.dp, NeonLime.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                    .clickable { isFullscreen = true }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Fullscreen,
+                        contentDescription = "Fullscreen",
+                        tint = NeonLime,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "FULLSCREEN",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = NeonLime,
+                            fontSize = 9.sp,
+                            letterSpacing = 0.4.sp
+                        )
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -435,6 +473,182 @@ fun LocalExoPlayerView(
                 Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(14.dp), tint = AmberGold)
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("YouTube", fontSize = 11.sp, color = TextSecondary)
+            }
+        }
+
+        // Dedicated Fullscreen Overlay Dialog
+        if (isFullscreen) {
+            Dialog(
+                onDismissRequest = { isFullscreen = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
+                ) {
+                    AndroidView(
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                player = exoPlayer
+                                useController = false
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // Top Bar Overlay
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopCenter)
+                            .background(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    colors = listOf(Color.Black.copy(alpha = 0.85f), Color.Transparent)
+                                )
+                            )
+                            .padding(horizontal = 16.dp, vertical = 20.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = segment?.title ?: "Workout Video",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    fontSize = 15.sp
+                                ),
+                                maxLines = 1
+                            )
+                            segment?.let { seg ->
+                                Text(
+                                    text = seg.formatTimeRange(),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = AmberGold,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(DarkBackground.copy(alpha = 0.85f))
+                                    .border(1.dp, if (continuousPlay) ElectricCyan else DarkSurfaceBorder, RoundedCornerShape(8.dp))
+                                    .clickable { onToggleContinuousPlay(!continuousPlay) }
+                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = if (continuousPlay) "CONTINUOUS" else "STOP AT END",
+                                    color = if (continuousPlay) ElectricCyan else TextSecondary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { isFullscreen = false },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(DarkBackground.copy(alpha = 0.85f))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FullscreenExit,
+                                    contentDescription = "Exit Fullscreen",
+                                    tint = NeonLime,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Bottom Controls Bar Overlay
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                )
+                            )
+                            .padding(horizontal = 20.dp, vertical = 24.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Rewind 5s
+                        IconButton(
+                            onClick = {
+                                val targetMs = (exoPlayer.currentPosition - 5000L).coerceAtLeast(0L)
+                                exoPlayer.seekTo(targetMs)
+                            },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(DarkSurfaceElevated.copy(alpha = 0.85f))
+                        ) {
+                            Icon(Icons.Default.FastRewind, contentDescription = "-5s", tint = TextPrimary, modifier = Modifier.size(24.dp))
+                        }
+
+                        Spacer(modifier = Modifier.width(20.dp))
+
+                        // Play / Pause Button
+                        Button(
+                            onClick = {
+                                if (isPlaying) {
+                                    exoPlayer.pause()
+                                    isPlaying = false
+                                } else {
+                                    exoPlayer.play()
+                                    isPlaying = true
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPlaying) AmberGold else NeonLime,
+                                contentColor = DarkBackground
+                            ),
+                            shape = CircleShape,
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(20.dp))
+
+                        // Restart Segment
+                        IconButton(
+                            onClick = {
+                                segment?.let { seg ->
+                                    hasTriggeredEndForCurrentSegment = false
+                                    exoPlayer.seekTo((seg.startSeconds * 1000).toLong())
+                                    exoPlayer.play()
+                                    isPlaying = true
+                                }
+                            },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(DarkSurfaceElevated.copy(alpha = 0.85f))
+                        ) {
+                            Icon(Icons.Default.Replay, contentDescription = "Restart", tint = ElectricCyan, modifier = Modifier.size(22.dp))
+                        }
+                    }
+                }
             }
         }
     }

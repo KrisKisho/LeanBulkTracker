@@ -7,18 +7,22 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.leanbulk.tracker.data.local.dao.AdaptationLogDao
+import com.leanbulk.tracker.data.local.dao.CustomFoodDao
 import com.leanbulk.tracker.data.local.dao.HabitDao
 import com.leanbulk.tracker.data.local.dao.MealDao
 import com.leanbulk.tracker.data.local.dao.ReminderDao
+import com.leanbulk.tracker.data.local.dao.SavedMealComboDao
 import com.leanbulk.tracker.data.local.dao.UserProfileDao
 import com.leanbulk.tracker.data.local.dao.WeightDao
 import com.leanbulk.tracker.data.local.dao.WorkoutDao
 import com.leanbulk.tracker.data.local.entity.AdaptationLogEntity
+import com.leanbulk.tracker.data.local.entity.CustomFoodEntity
 import com.leanbulk.tracker.data.local.entity.DailyHabitLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyMealLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyWorkoutLogEntity
 import com.leanbulk.tracker.data.local.entity.MealTemplateEntity
 import com.leanbulk.tracker.data.local.entity.ReminderEntity
+import com.leanbulk.tracker.data.local.entity.SavedMealComboEntity
 import com.leanbulk.tracker.data.local.entity.UserProfileEntity
 import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
 
@@ -31,9 +35,11 @@ import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
         UserProfileEntity::class,
         DailyHabitLogEntity::class,
         MealTemplateEntity::class,
-        AdaptationLogEntity::class
+        AdaptationLogEntity::class,
+        CustomFoodEntity::class,
+        SavedMealComboEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -45,6 +51,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun habitDao(): HabitDao
     abstract fun adaptationLogDao(): AdaptationLogDao
+    abstract fun customFoodDao(): CustomFoodDao
+    abstract fun savedMealComboDao(): SavedMealComboDao
 
     companion object {
         @Volatile
@@ -118,6 +126,46 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `custom_foods` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `teluguOrRegionalHint` TEXT NOT NULL DEFAULT '',
+                        `category` TEXT NOT NULL,
+                        `servingUnit` TEXT NOT NULL,
+                        `calories` INTEGER NOT NULL,
+                        `proteinGrams` REAL NOT NULL,
+                        `carbsGrams` REAL NOT NULL,
+                        `fatGrams` REAL NOT NULL,
+                        `isVegetarian` INTEGER NOT NULL DEFAULT 1,
+                        `isHighProteinPatch` INTEGER NOT NULL DEFAULT 0,
+                        `createdAtMillis` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `saved_meal_combos` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `targetMealSlotId` TEXT NOT NULL DEFAULT '',
+                        `totalCalories` INTEGER NOT NULL,
+                        `totalProtein` REAL NOT NULL,
+                        `totalCarbs` REAL NOT NULL,
+                        `totalFat` REAL NOT NULL,
+                        `isVegetarian` INTEGER NOT NULL DEFAULT 1,
+                        `itemsJson` TEXT NOT NULL,
+                        `createdAtMillis` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -125,7 +173,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lean_bulk_tracker.db"
                 )
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
