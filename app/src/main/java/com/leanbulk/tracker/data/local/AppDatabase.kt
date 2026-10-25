@@ -12,6 +12,7 @@ import com.leanbulk.tracker.data.local.dao.HabitDao
 import com.leanbulk.tracker.data.local.dao.MealDao
 import com.leanbulk.tracker.data.local.dao.ReminderDao
 import com.leanbulk.tracker.data.local.dao.SavedMealComboDao
+import com.leanbulk.tracker.data.local.dao.SupplementDao
 import com.leanbulk.tracker.data.local.dao.UserProfileDao
 import com.leanbulk.tracker.data.local.dao.WeightDao
 import com.leanbulk.tracker.data.local.dao.WorkoutDao
@@ -23,6 +24,7 @@ import com.leanbulk.tracker.data.local.entity.DailyWorkoutLogEntity
 import com.leanbulk.tracker.data.local.entity.MealTemplateEntity
 import com.leanbulk.tracker.data.local.entity.ReminderEntity
 import com.leanbulk.tracker.data.local.entity.SavedMealComboEntity
+import com.leanbulk.tracker.data.local.entity.SupplementLogEntity
 import com.leanbulk.tracker.data.local.entity.UserProfileEntity
 import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
 
@@ -37,9 +39,10 @@ import com.leanbulk.tracker.data.local.entity.WeightProgressEntity
         MealTemplateEntity::class,
         AdaptationLogEntity::class,
         CustomFoodEntity::class,
-        SavedMealComboEntity::class
+        SavedMealComboEntity::class,
+        SupplementLogEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -53,6 +56,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun adaptationLogDao(): AdaptationLogDao
     abstract fun customFoodDao(): CustomFoodDao
     abstract fun savedMealComboDao(): SavedMealComboDao
+    abstract fun supplementDao(): SupplementDao
 
     companion object {
         @Volatile
@@ -166,6 +170,38 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // UserProfile columns for Supplement & Equipment
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN wheyCreatineMode TEXT NOT NULL DEFAULT 'WHEY_WITH_CREATINE'")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN creatineSaturationPercent REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN d3Supplement1Iu INTEGER NOT NULL DEFAULT 600")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN d3Supplement2Iu INTEGER NOT NULL DEFAULT 400")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN eqHas4kgDumbbell INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN eqHasWeightedBackpack INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN eqHasSturdyTableOrBed INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN eqHasAdjustableDumbbell INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN eqHasBarbell INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN eqHasPullUpBar INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN eqHasResistanceBand INTEGER NOT NULL DEFAULT 0")
+
+                // supplement_logs table
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `supplement_logs` (
+                        `date` TEXT PRIMARY KEY NOT NULL,
+                        `wheyLogged` INTEGER NOT NULL DEFAULT 0,
+                        `creatineGramsLogged` REAL NOT NULL DEFAULT 0.0,
+                        `vitD3B12K2Logged` INTEGER NOT NULL DEFAULT 0,
+                        `fishOilLogged` INTEGER NOT NULL DEFAULT 0,
+                        `magnesiumGlycinateLogged` INTEGER NOT NULL DEFAULT 0,
+                        `timestampMillis` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -173,7 +209,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lean_bulk_tracker.db"
                 )
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

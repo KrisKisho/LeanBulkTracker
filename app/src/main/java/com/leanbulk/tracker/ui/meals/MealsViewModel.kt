@@ -10,6 +10,7 @@ import com.leanbulk.tracker.data.local.AppDatabase
 import com.leanbulk.tracker.data.local.entity.AdaptationLogEntity
 import com.leanbulk.tracker.data.local.entity.CustomFoodEntity
 import com.leanbulk.tracker.data.local.entity.SavedMealComboEntity
+import com.leanbulk.tracker.data.local.entity.SupplementLogEntity
 import com.leanbulk.tracker.data.model.AdaptiveCoachEngine
 import com.leanbulk.tracker.data.model.AdaptiveMealResizer
 import com.leanbulk.tracker.data.model.AdaptiveStatusInfo
@@ -47,7 +48,8 @@ data class MealsUiState(
     val sleepHours: Float = 0.0f,
     val adaptiveStatus: AdaptiveStatusInfo = AdaptiveCoachEngine.extractStatusInfo(UserProfile(), emptyList()),
     val adaptationLogs: List<AdaptationLogEntity> = emptyList(),
-    val isEvaluatingAdaptation: Boolean = false
+    val isEvaluatingAdaptation: Boolean = false,
+    val supplementLog: SupplementLogEntity = SupplementLogEntity(date = LocalDate.now().toString())
 ) {
     val targetCalories: Int
         get() = nutritionTarget.dynamicCalorieTarget
@@ -117,12 +119,15 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
         MetaState(date, showDialog, profile, syncData)
     }.flatMapLatest { meta ->
         combine(
-            mealRepository.getMealsForDate(meta.date),
-            workoutDao.getWorkoutLogsForDate(meta.date.toString()),
-            habitRepository.getTodayHabit(meta.date),
+            combine(
+                mealRepository.getMealsForDate(meta.date),
+                workoutDao.getWorkoutLogsForDate(meta.date.toString()),
+                habitRepository.getTodayHabit(meta.date)
+            ) { meals, workout, habit -> Triple(meals, workout, habit) },
+            db.supplementDao().getSupplementLog(meta.date.toString()),
             db.adaptationLogDao().getAllLogs(),
             _isEvaluatingAdaptation
-        ) { rawMeals, workoutLogs, habitLog, logs, isEvaluating ->
+        ) { (rawMeals, workoutLogs, habitLog), suppLog, logs, isEvaluating ->
             val dayPlan = WorkoutDataSource.getWeeklyPlans()[meta.date.dayOfWeek]
             val totalSegments = dayPlan?.segments?.size ?: 5
             val completedSegments = workoutLogs.count { it.isCompleted }
@@ -153,7 +158,8 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
                 sleepHours = habitLog?.sleepHours ?: 0.0f,
                 adaptiveStatus = statusInfo,
                 adaptationLogs = logs,
-                isEvaluatingAdaptation = isEvaluating
+                isEvaluatingAdaptation = isEvaluating,
+                supplementLog = suppLog ?: SupplementLogEntity(date = meta.date.toString())
             )
         }
     }.stateIn(
@@ -414,4 +420,50 @@ class MealsViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    fun toggleWheyMode() {
+        viewModelScope.launch {
+            try {
+                val current = profileRepository.getUserProfileSync()
+                val newMode = if (current.wheyCreatineMode == "WHEY_WITH_CREATINE") "WHEY_ONLY_NO_CREATINE" else "WHEY_WITH_CREATINE"
+                profileRepository.updateProfile(current.copy(wheyCreatineMode = newMode))
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error toggling whey mode", e)
+            }
+        }
+    }
+
+    fun toggleSupplement(supplementType: String, isChecked: Boolean) {
+        viewModelScope.launch {
+            try {
+                val dateStr = _selectedDate.value.toString()
+                val currentLog = db.supplementDao().getSupplementLogSync(dateStr) ?: SupplementLogEntity(date = dateStr)
+                val profile = profileRepository.getUserProfileSync()
+                val isCreatineMode = profile.wheyCreatineMode == "WHEY_WITH_CREATINE"
+
+                val updatedLog = when (supplementType) {
+                    "WHEY" -> {
+                        val creatineGrams = if (isChecked && isCreatineMode) 3.0f else 0.0f
+                        val newSaturation = if (isChecked && isCreatineMode) {
+                            (profile.creatineSaturationPercent + 4.0f).coerceAtMost(100f)
+                        } else if (!isChecked && isCreatineMode) {
+                            (profile.creatineSaturationPercent - 4.0f).coerceAtLeast(0f)
+                        } else {
+                            (profile.creatineSaturationPercent - 2.5f).coerceAtLeast(0f)
+                        }
+                        profileRepository.updateProfile(profile.copy(creatineSaturationPercent = newSaturation))
+                        currentLog.copy(wheyLogged = isChecked, creatineGramsLogged = creatineGrams)
+                    }
+                    "D3" -> currentLog.copy(vitD3B12K2Logged = isChecked)
+                    "FISH_OIL" -> currentLog.copy(fishOilLogged = isChecked)
+                    "MAGNESIUM" -> currentLog.copy(magnesiumGlycinateLogged = isChecked)
+                    else -> currentLog
+                }
+                db.supplementDao().insertOrUpdate(updatedLog)
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error toggling supplement", e)
+            }
+        }
+    }
+
 }

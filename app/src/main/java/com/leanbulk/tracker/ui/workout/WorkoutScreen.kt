@@ -56,6 +56,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.leanbulk.tracker.data.model.MesocyclePhase
 import com.leanbulk.tracker.data.model.ProgressiveOverloadEngine
 import com.leanbulk.tracker.data.model.WorkoutSegment
+import com.leanbulk.tracker.data.model.EquipmentLoadTranslator
+import com.leanbulk.tracker.data.model.HomeGymInventory
+import com.leanbulk.tracker.data.model.MovementCategory
 import com.leanbulk.tracker.ui.components.OfflineVideosDialog
 import com.leanbulk.tracker.ui.components.YouTubePlayerContainer
 import kotlinx.coroutines.launch
@@ -88,6 +91,14 @@ fun WorkoutScreen(
         OfflineVideosDialog(onDismiss = { showOfflineVideosDialog = false })
     }
 
+    if (state.showInventoryDialog) {
+        HomeGymInventoryDialog(
+            initialInventory = state.inventory,
+            onDismiss = { viewModel.closeInventoryDialog() },
+            onSave = { updated -> viewModel.updateInventory(updated) }
+        )
+    }
+
     LazyColumn(
         state = listState,
         modifier = Modifier
@@ -102,7 +113,8 @@ fun WorkoutScreen(
             WorkoutHeader(
                 streak = state.streak,
                 selectedDay = state.selectedDay,
-                onOpenOfflineVideos = { showOfflineVideosDialog = true }
+                onOpenOfflineVideos = { showOfflineVideosDialog = true },
+                onOpenEquipment = { viewModel.openInventoryDialog() }
             )
         }
 
@@ -147,11 +159,15 @@ fun WorkoutScreen(
         }
 
         item {
-            // Embedded YouTube / Local Video Player for Active Segment
+            // Embedded YouTube / Local Video Player for Active Segment + Tempo Metronome
             if (state.activeSegment != null) {
                 ActiveSegmentPlayerCard(
                     segment = state.activeSegment!!,
+                    activeWeek = state.activeCycleWeek,
                     onSegmentEnded = { viewModel.onSegmentFinished(it) },
+                    onMetronomeSetFinished = { reps ->
+                        viewModel.onMetronomeSetFinished(state.activeSegment!!, reps)
+                    },
                     autoPlay = autoPlaySegmentId == state.activeSegment?.id,
                     continuousPlay = isContinuousPlay,
                     onToggleContinuousPlay = { isContinuousPlay = it }
@@ -177,6 +193,7 @@ fun WorkoutScreen(
                 segment = segment,
                 isActive = isActive,
                 activeCycleWeek = state.activeCycleWeek,
+                inventory = state.inventory,
                 onSelect = { viewModel.selectSegment(segment) },
                 onPlay = {
                     viewModel.selectSegment(segment)
@@ -193,6 +210,9 @@ fun WorkoutScreen(
                 },
                 onApplyUpgrade = { nextWeight ->
                     viewModel.applyWeightUpgrade(segment, nextWeight)
+                },
+                onSwapToBarbell = { weight ->
+                    viewModel.swapToBarbell(segment, weight)
                 }
             )
         }
@@ -207,7 +227,8 @@ fun WorkoutScreen(
 fun WorkoutHeader(
     streak: Int,
     selectedDay: DayOfWeek,
-    onOpenOfflineVideos: () -> Unit = {}
+    onOpenOfflineVideos: () -> Unit = {},
+    onOpenEquipment: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -251,6 +272,33 @@ fun WorkoutHeader(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
                             color = NeonLime
+                        )
+                    )
+                }
+            }
+
+            // My Equipment Inventory Pill
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(ElectricCyan.copy(alpha = 0.15f))
+                    .border(1.dp, ElectricCyan.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                    .clickable { onOpenEquipment() }
+                    .padding(horizontal = 9.dp, vertical = 6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.FitnessCenter,
+                        contentDescription = "My Equipment",
+                        tint = ElectricCyan,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Equipment",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = ElectricCyan
                         )
                     )
                 }
@@ -585,7 +633,9 @@ fun WorkoutOverviewCard(
 @Composable
 fun ActiveSegmentPlayerCard(
     segment: WorkoutSegment,
+    activeWeek: Int,
     onSegmentEnded: (WorkoutSegment) -> Unit,
+    onMetronomeSetFinished: (Int) -> Unit = {},
     autoPlay: Boolean = false,
     continuousPlay: Boolean = false,
     onToggleContinuousPlay: (Boolean) -> Unit = {}
@@ -667,6 +717,14 @@ fun ActiveSegmentPlayerCard(
                 onToggleContinuousPlay = onToggleContinuousPlay
             )
 
+            // Audio/Visual Tempo Metronome Bar
+            Spacer(modifier = Modifier.height(10.dp))
+            TempoMetronomeBar(
+                segment = segment,
+                activeWeek = activeWeek,
+                onSetFinished = onMetronomeSetFinished
+            )
+
             if (segment.note.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -686,11 +744,13 @@ fun SegmentListItem(
     segment: WorkoutSegment,
     isActive: Boolean,
     activeCycleWeek: Int,
+    inventory: HomeGymInventory = HomeGymInventory(),
     onSelect: () -> Unit,
     onPlay: () -> Unit = onSelect,
     onToggleComplete: (Boolean) -> Unit,
     onOverloadChange: (Float, Int, Int, String) -> Unit = { _, _, _, _ -> },
-    onApplyUpgrade: (Float) -> Unit = {}
+    onApplyUpgrade: (Float) -> Unit = {},
+    onSwapToBarbell: (Float) -> Unit = {}
 ) {
     val borderColor = if (isActive) ElectricCyan else DarkSurfaceBorder
     val bgColor = if (isActive) DarkSurfaceElevated else DarkSurfaceElevated.copy(alpha = 0.6f)
@@ -841,6 +901,96 @@ fun SegmentListItem(
                                     color = NeonLime,
                                     fontSize = 10.5.sp
                                 )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Smart Load Setup & Exercise Swap Advice Chip
+            val category = profile?.primaryCategory ?: MovementCategory.LARGE_UPPER
+            val loadAdvice = remember(segment.title, segment.weightUsedKg, inventory) {
+                EquipmentLoadTranslator.getAdviceForSegment(
+                    segmentTitle = segment.title,
+                    targetWeightKg = segment.weightUsedKg,
+                    category = category,
+                    inventory = inventory
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkBackground.copy(alpha = 0.6f))
+                    .border(0.5.dp, DarkSurfaceBorder, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.FitnessCenter,
+                                contentDescription = null,
+                                tint = ElectricCyan,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = loadAdvice.title,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = ElectricCyan,
+                                    fontSize = 10.5.sp
+                                )
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(DarkSurfaceElevated)
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = loadAdvice.equipmentTag,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NeonLime
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = loadAdvice.details,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = TextSecondary,
+                            fontSize = 10.sp,
+                            lineHeight = 13.sp
+                        )
+                    )
+
+                    if (loadAdvice.canSwapBarbell) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(NeonLime.copy(alpha = 0.15f))
+                                .border(1.dp, NeonLime.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                .clickable { onSwapToBarbell(loadAdvice.barbellWeightKg) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "🏋️ Swap to Barbell (${loadAdvice.barbellWeightKg} kg)",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NeonLime
                             )
                         }
                     }

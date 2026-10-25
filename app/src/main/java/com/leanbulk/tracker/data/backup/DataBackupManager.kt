@@ -7,6 +7,7 @@ import com.leanbulk.tracker.data.local.AppDatabase
 import com.leanbulk.tracker.data.local.entity.AdaptationLogEntity
 import com.leanbulk.tracker.data.local.entity.CustomFoodEntity
 import com.leanbulk.tracker.data.local.entity.SavedMealComboEntity
+import com.leanbulk.tracker.data.local.entity.SupplementLogEntity
 import com.leanbulk.tracker.data.model.FoodCategory
 import com.leanbulk.tracker.data.local.entity.DailyHabitLogEntity
 import com.leanbulk.tracker.data.local.entity.DailyMealLogEntity
@@ -38,7 +39,8 @@ data class BackupSummary(
     val habitsCount: Int = 0,
     val adaptationLogsCount: Int = 0,
     val customFoodsCount: Int = 0,
-    val savedCombosCount: Int = 0
+    val savedCombosCount: Int = 0,
+    val supplementLogsCount: Int = 0
 )
 
 class DataBackupManager(private val database: AppDatabase) {
@@ -86,6 +88,17 @@ class DataBackupManager(private val database: AppDatabase) {
                 put("workoutStartTimeMinute", profile.workoutStartTimeMinute)
                 put("currentRollingSplitIndex", profile.currentRollingSplitIndex)
                 put("lastAdaptationEvalDate", profile.lastAdaptationEvalDate)
+                put("wheyCreatineMode", profile.wheyCreatineMode)
+                put("creatineSaturationPercent", profile.creatineSaturationPercent.toDouble())
+                put("d3Supplement1Iu", profile.d3Supplement1Iu)
+                put("d3Supplement2Iu", profile.d3Supplement2Iu)
+                put("eqHas4kgDumbbell", profile.eqHas4kgDumbbell)
+                put("eqHasWeightedBackpack", profile.eqHasWeightedBackpack)
+                put("eqHasSturdyTableOrBed", profile.eqHasSturdyTableOrBed)
+                put("eqHasAdjustableDumbbell", profile.eqHasAdjustableDumbbell)
+                put("eqHasBarbell", profile.eqHasBarbell)
+                put("eqHasPullUpBar", profile.eqHasPullUpBar)
+                put("eqHasResistanceBand", profile.eqHasResistanceBand)
             }
             root.put("userProfile", pObj)
         }
@@ -258,6 +271,23 @@ class DataBackupManager(private val database: AppDatabase) {
         }
         root.put("savedMealCombos", combosArr)
 
+        // 10. Supplement Logs
+        val supplementLogs = database.supplementDao().getAllSupplementLogsSync()
+        val suppArr = JSONArray()
+        supplementLogs.forEach { s ->
+            val sObj = JSONObject().apply {
+                put("date", s.date)
+                put("wheyLogged", s.wheyLogged)
+                put("creatineGramsLogged", s.creatineGramsLogged.toDouble())
+                put("vitD3B12K2Logged", s.vitD3B12K2Logged)
+                put("fishOilLogged", s.fishOilLogged)
+                put("magnesiumGlycinateLogged", s.magnesiumGlycinateLogged)
+                put("timestampMillis", s.timestampMillis)
+            }
+            suppArr.put(sObj)
+        }
+        root.put("supplementLogs", suppArr)
+
         root.toString(2)
     }
 
@@ -330,7 +360,18 @@ class DataBackupManager(private val database: AppDatabase) {
                     workoutStartTimeHour = pObj.optInt("workoutStartTimeHour", 19),
                     workoutStartTimeMinute = pObj.optInt("workoutStartTimeMinute", 30),
                     currentRollingSplitIndex = pObj.optInt("currentRollingSplitIndex", 0),
-                    lastAdaptationEvalDate = pObj.optString("lastAdaptationEvalDate", "")
+                    lastAdaptationEvalDate = pObj.optString("lastAdaptationEvalDate", ""),
+                    wheyCreatineMode = pObj.optString("wheyCreatineMode", "WHEY_WITH_CREATINE"),
+                    creatineSaturationPercent = pObj.optDouble("creatineSaturationPercent", 0.0).toFloat(),
+                    d3Supplement1Iu = pObj.optInt("d3Supplement1Iu", 600),
+                    d3Supplement2Iu = pObj.optInt("d3Supplement2Iu", 400),
+                    eqHas4kgDumbbell = pObj.optBoolean("eqHas4kgDumbbell", true),
+                    eqHasWeightedBackpack = pObj.optBoolean("eqHasWeightedBackpack", true),
+                    eqHasSturdyTableOrBed = pObj.optBoolean("eqHasSturdyTableOrBed", true),
+                    eqHasAdjustableDumbbell = pObj.optBoolean("eqHasAdjustableDumbbell", false),
+                    eqHasBarbell = pObj.optBoolean("eqHasBarbell", false),
+                    eqHasPullUpBar = pObj.optBoolean("eqHasPullUpBar", false),
+                    eqHasResistanceBand = pObj.optBoolean("eqHasResistanceBand", false)
                 )
                 database.userProfileDao().upsertUserProfile(entity)
                 profileImported = true
@@ -586,6 +627,26 @@ class DataBackupManager(private val database: AppDatabase) {
                 }
             }
 
+            // 10. Restore Supplement Logs
+            var suppCount = 0
+            if (root.has("supplementLogs")) {
+                val arr = root.getJSONArray("supplementLogs")
+                for (i in 0 until arr.length()) {
+                    val s = arr.getJSONObject(i)
+                    val log = SupplementLogEntity(
+                        date = s.getString("date"),
+                        wheyLogged = s.optBoolean("wheyLogged", false),
+                        creatineGramsLogged = s.optDouble("creatineGramsLogged", 0.0).toFloat(),
+                        vitD3B12K2Logged = s.optBoolean("vitD3B12K2Logged", false),
+                        fishOilLogged = s.optBoolean("fishOilLogged", false),
+                        magnesiumGlycinateLogged = s.optBoolean("magnesiumGlycinateLogged", false),
+                        timestampMillis = s.optLong("timestampMillis", System.currentTimeMillis())
+                    )
+                    database.supplementDao().insertOrUpdate(log)
+                    suppCount++
+                }
+            }
+
             BackupSummary(
                 success = true,
                 message = "Backup restored successfully!",
@@ -597,8 +658,10 @@ class DataBackupManager(private val database: AppDatabase) {
                 habitsCount = habitCount,
                 adaptationLogsCount = adaptationCount,
                 customFoodsCount = customCount,
-                savedCombosCount = comboCount
+                savedCombosCount = comboCount,
+                supplementLogsCount = suppCount
             )
+
         } catch (e: Exception) {
             BackupSummary(
                 success = false,

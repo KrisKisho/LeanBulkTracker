@@ -40,7 +40,20 @@ data class UserProfile(
     val workoutStartTimeHour: Int = 19,
     val workoutStartTimeMinute: Int = 30,
     val currentRollingSplitIndex: Int = 0,
-    val lastAdaptationEvalDate: String = ""
+    val lastAdaptationEvalDate: String = "",
+    // Supplement Stack & Creatine Tracker
+    val wheyCreatineMode: String = "WHEY_WITH_CREATINE",
+    val creatineSaturationPercent: Float = 0f,
+    val d3Supplement1Iu: Int = 600,
+    val d3Supplement2Iu: Int = 400,
+    // Home Gym Equipment Inventory
+    val eqHas4kgDumbbell: Boolean = true,
+    val eqHasWeightedBackpack: Boolean = true,
+    val eqHasSturdyTableOrBed: Boolean = true,
+    val eqHasAdjustableDumbbell: Boolean = false,
+    val eqHasBarbell: Boolean = false,
+    val eqHasPullUpBar: Boolean = false,
+    val eqHasResistanceBand: Boolean = false
 ) {
     val startingWeightKg: Float get() = startWeightKg
     val targetWeightKg: Float get() = goalWeightKg

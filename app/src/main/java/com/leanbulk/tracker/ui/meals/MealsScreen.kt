@@ -297,6 +297,19 @@ fun MealsScreen(
         }
 
         item {
+            // Daily Supplement Stack & Creatine Saturation Tracker
+            SupplementTrackerCard(
+                supplementLog = state.supplementLog,
+                wheyCreatineMode = state.userProfile.wheyCreatineMode,
+                creatineSaturationPercent = state.userProfile.creatineSaturationPercent,
+                d3Supplement1Iu = state.userProfile.d3Supplement1Iu,
+                d3Supplement2Iu = state.userProfile.d3Supplement2Iu,
+                onToggleWheyMode = { viewModel.toggleWheyMode() },
+                onToggleSupplement = { type, checked -> viewModel.toggleSupplement(type, checked) }
+            )
+        }
+
+        item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

@@ -10,6 +10,8 @@ import com.leanbulk.tracker.data.model.DayWorkoutPlan
 import com.leanbulk.tracker.data.model.MesocyclePhase
 import com.leanbulk.tracker.data.model.WorkoutDataSource
 import com.leanbulk.tracker.data.model.WorkoutSegment
+import com.leanbulk.tracker.data.model.HomeGymInventory
+import com.leanbulk.tracker.data.local.entity.UserProfileEntity
 import com.leanbulk.tracker.data.repository.WorkoutRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +36,9 @@ data class WorkoutUiState(
     val activeCycleWeek: Int = 1,
     val isShifted: Boolean = false,
     val shiftedFromDay: DayOfWeek? = null,
-    val isDeloadRecommended: Boolean = false
+    val isDeloadRecommended: Boolean = false,
+    val inventory: HomeGymInventory = HomeGymInventory(),
+    val showInventoryDialog: Boolean = false
 ) {
     val activeMesocyclePhase: MesocyclePhase
         get() = MesocyclePhase.fromWeek(activeCycleWeek)
@@ -78,6 +82,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _isShifted = MutableStateFlow(false)
     private val _shiftedFromDay = MutableStateFlow<DayOfWeek?>(null)
     private val _isDeloadRecommended = MutableStateFlow(false)
+    private val _showInventoryDialog = MutableStateFlow(false)
     private var hasUserOverriddenWeek = false
 
     init {
@@ -147,7 +152,27 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             isDeloadRecommended = adaptive.isDeloadRecommended
         )
     }.flatMapLatest { meta ->
-        repository.getPlanWithStatus(LocalDate.now(), meta.day, meta.cycleWeek).map { planWithStatus ->
+        val inventoryFlow = db.userProfileDao().getUserProfileFlow().map { entity ->
+            if (entity != null) {
+                HomeGymInventory(
+                    has4kgDumbbell = entity.eqHas4kgDumbbell,
+                    hasWeightedBackpack = entity.eqHasWeightedBackpack,
+                    hasSturdyTableOrBed = entity.eqHasSturdyTableOrBed,
+                    hasAdjustableDumbbell = entity.eqHasAdjustableDumbbell,
+                    hasBarbell = entity.eqHasBarbell,
+                    hasPullUpBar = entity.eqHasPullUpBar,
+                    hasResistanceBand = entity.eqHasResistanceBand
+                )
+            } else {
+                HomeGymInventory()
+            }
+        }
+
+        combine(
+            repository.getPlanWithStatus(LocalDate.now(), meta.day, meta.cycleWeek),
+            inventoryFlow,
+            _showInventoryDialog
+        ) { planWithStatus, inventory, showDialog ->
             val activeSeg = planWithStatus.segments.find { it.id == meta.activeSegId }
                 ?: planWithStatus.segments.firstOrNull { !it.isCompleted }
                 ?: planWithStatus.segments.firstOrNull()
@@ -162,7 +187,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 activeCycleWeek = meta.cycleWeek,
                 isShifted = meta.isShifted,
                 shiftedFromDay = meta.shiftedFromDay,
-                isDeloadRecommended = meta.isDeloadRecommended
+                isDeloadRecommended = meta.isDeloadRecommended,
+                inventory = inventory,
+                showInventoryDialog = showDialog
             )
         }
     }.stateIn(
@@ -276,4 +303,57 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
+
+    fun openInventoryDialog() {
+        _showInventoryDialog.value = true
+    }
+
+    fun closeInventoryDialog() {
+        _showInventoryDialog.value = false
+    }
+
+    fun updateInventory(inventory: HomeGymInventory) {
+        viewModelScope.launch {
+            try {
+                val entity = db.userProfileDao().getUserProfileSync() ?: UserProfileEntity()
+                db.userProfileDao().upsertUserProfile(
+                    entity.copy(
+                        eqHas4kgDumbbell = inventory.has4kgDumbbell,
+                        eqHasWeightedBackpack = inventory.hasWeightedBackpack,
+                        eqHasSturdyTableOrBed = inventory.hasSturdyTableOrBed,
+                        eqHasAdjustableDumbbell = inventory.hasAdjustableDumbbell,
+                        eqHasBarbell = inventory.hasBarbell,
+                        eqHasPullUpBar = inventory.hasPullUpBar,
+                        eqHasResistanceBand = inventory.hasResistanceBand
+                    )
+                )
+                closeInventoryDialog()
+            } catch (e: Exception) {
+                Log.e("WorkoutViewModel", "Error updating inventory", e)
+            }
+        }
+    }
+
+    fun onMetronomeSetFinished(segment: WorkoutSegment, completedReps: Int) {
+        Log.d("WorkoutViewModel", "Metronome set finished for ${segment.id}: achieved $completedReps reps")
+        updateOverload(
+            segment = segment,
+            weightKg = segment.weightUsedKg,
+            reps = segment.repsPerSet,
+            set3Reps = completedReps,
+            effortRating = segment.effortRating
+        )
+    }
+
+    fun swapToBarbell(segment: WorkoutSegment, barbellWeightKg: Float) {
+        Log.d("WorkoutViewModel", "Swapping ${segment.id} to Barbell weight: $barbellWeightKg kg")
+        updateOverload(
+            segment = segment,
+            weightKg = barbellWeightKg,
+            reps = segment.repsPerSet,
+            set3Reps = segment.set3RepsAchieved,
+            effortRating = segment.effortRating
+        )
+    }
+
 }

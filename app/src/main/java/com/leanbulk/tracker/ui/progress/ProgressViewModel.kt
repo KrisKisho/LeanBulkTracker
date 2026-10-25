@@ -13,6 +13,8 @@ import com.leanbulk.tracker.data.model.BodyDimensionCalculator
 import com.leanbulk.tracker.data.model.BodyForecastResult
 import com.leanbulk.tracker.data.model.CoachingInsight
 import com.leanbulk.tracker.data.model.UserProfile
+import com.leanbulk.tracker.data.model.HomeGymInventory
+import com.leanbulk.tracker.data.local.entity.UserProfileEntity
 import com.leanbulk.tracker.data.model.WeightEntry
 import com.leanbulk.tracker.data.repository.UserProfileRepository
 import com.leanbulk.tracker.data.repository.WeightRepository
@@ -33,7 +35,9 @@ data class ProgressUiState(
     val showEditProfileDialog: Boolean = false,
     val adaptationLogs: List<AdaptationLogEntity> = emptyList(),
     val adaptiveStatus: AdaptiveStatusInfo = AdaptiveCoachEngine.extractStatusInfo(UserProfile(), emptyList()),
-    val isEvaluatingAdaptation: Boolean = false
+    val isEvaluatingAdaptation: Boolean = false,
+    val showInventoryDialog: Boolean = false,
+    val inventory: HomeGymInventory = HomeGymInventory()
 ) {
     val latestEntry: WeightEntry?
         get() = entries.maxByOrNull { it.date }
@@ -54,6 +58,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     private val _showLogDialog = MutableStateFlow(false)
     private val _showEditProfileDialog = MutableStateFlow(false)
     private val _isEvaluatingAdaptation = MutableStateFlow(false)
+    private val _showInventoryDialog = MutableStateFlow(false)
 
     init {
         viewModelScope.launch {
@@ -67,9 +72,11 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private val dialogsFlow = combine(_showLogDialog, _showEditProfileDialog, _isEvaluatingAdaptation) { showLog, showEdit, isEval ->
-        Triple(showLog, showEdit, isEval)
+    private val dialogsFlow = combine(_showLogDialog, _showEditProfileDialog, _isEvaluatingAdaptation, _showInventoryDialog) { showLog, showEdit, isEval, showInv ->
+        Quadruple(showLog, showEdit, isEval, showInv)
     }
+
+    private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
     val uiState: StateFlow<ProgressUiState> = combine(
         profileRepository.getUserProfile(),
@@ -77,7 +84,16 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         db.adaptationLogDao().getAllLogs(),
         dialogsFlow
     ) { profile, entries, logs, dialogs ->
-        val (showLog, showEditProfile, isEvaluating) = dialogs
+        val (showLog, showEditProfile, isEvaluating, showInventory) = dialogs
+        val inventory = HomeGymInventory(
+            has4kgDumbbell = profile.eqHas4kgDumbbell,
+            hasWeightedBackpack = profile.eqHasWeightedBackpack,
+            hasSturdyTableOrBed = profile.eqHasSturdyTableOrBed,
+            hasAdjustableDumbbell = profile.eqHasAdjustableDumbbell,
+            hasBarbell = profile.eqHasBarbell,
+            hasPullUpBar = profile.eqHasPullUpBar,
+            hasResistanceBand = profile.eqHasResistanceBand
+        )
         val latest = entries.maxByOrNull { it.date }
         val effectiveProfile = profile.copy(
             currentWeightKg = latest?.weightKg ?: profile.currentWeightKg,
@@ -106,7 +122,9 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             showEditProfileDialog = showEditProfile,
             adaptationLogs = logs,
             adaptiveStatus = statusInfo,
-            isEvaluatingAdaptation = isEvaluating
+            isEvaluatingAdaptation = isEvaluating,
+            showInventoryDialog = showInventory,
+            inventory = inventory
         )
     }.stateIn(
         viewModelScope,
@@ -190,4 +208,35 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
+
+    fun openInventoryDialog() {
+        _showInventoryDialog.value = true
+    }
+
+    fun closeInventoryDialog() {
+        _showInventoryDialog.value = false
+    }
+
+    fun updateInventory(inventory: HomeGymInventory) {
+        viewModelScope.launch {
+            try {
+                val entity = db.userProfileDao().getUserProfileSync() ?: UserProfileEntity()
+                db.userProfileDao().upsertUserProfile(
+                    entity.copy(
+                        eqHas4kgDumbbell = inventory.has4kgDumbbell,
+                        eqHasWeightedBackpack = inventory.hasWeightedBackpack,
+                        eqHasSturdyTableOrBed = inventory.hasSturdyTableOrBed,
+                        eqHasAdjustableDumbbell = inventory.hasAdjustableDumbbell,
+                        eqHasBarbell = inventory.hasBarbell,
+                        eqHasPullUpBar = inventory.hasPullUpBar,
+                        eqHasResistanceBand = inventory.hasResistanceBand
+                    )
+                )
+                closeInventoryDialog()
+            } catch (e: Exception) {
+                Log.e("ProgressViewModel", "Error updating inventory", e)
+            }
+        }
+    }
+
 }

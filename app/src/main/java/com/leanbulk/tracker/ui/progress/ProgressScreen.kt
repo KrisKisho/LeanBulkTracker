@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.FitnessCenter
+import com.leanbulk.tracker.ui.workout.HomeGymInventoryDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -87,6 +89,14 @@ fun ProgressScreen(
         )
     }
 
+    if (state.showInventoryDialog) {
+        HomeGymInventoryDialog(
+            initialInventory = state.inventory,
+            onDismiss = { viewModel.closeInventoryDialog() },
+            onSave = { updated -> viewModel.updateInventory(updated) }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -121,6 +131,19 @@ fun ProgressScreen(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // My Equipment button
+                    OutlinedButton(
+                        onClick = { viewModel.openInventoryDialog() },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonLime),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NeonLime.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.FitnessCenter, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Equipment", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+                    }
+
                     // Profile button
                     OutlinedButton(
                         onClick = { viewModel.openEditProfileDialog() },
