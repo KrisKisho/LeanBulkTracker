@@ -64,6 +64,12 @@ Designed specifically for lean-bulk progression ($60.0\text{ kg} \rightarrow 70.
 - **System Share Sheet & SAF:** Direct local file save or share via Google Drive, WhatsApp, Gmail, or Bluetooth.
 - **Atomic Restore:** 1-tap transactional import with Room `@Upsert` and AlarmManager notification re-scheduling.
 
+### 10. Nutrition Label Per-100g Custom Food Builder (AddFoodItemDialog.kt)
+- **Direct 100g Nutrition Label Entry:** Fast entry dialog for packaging nutrition labels listing calories, protein, carbs, and fat per 100g.
+- **Real-Time Macro Consistency Check:** Live (P*4 + C*4 + F*9) calculation validating reported label calories against macronutrients.
+- **Flexible Serving Scaling:** Standard 100g base (0.5x, 1.0x, 1.5x) or custom household units (1 scoop, 1 bowl) with live macro scaling.
+- **Live Catalog Integration:** Automatically adds saved items to SouthIndianFoodCatalog and the Room database, accessible in 1 tap from MealsScreen header, Quick Surplus dialog, and Plate Builder.
+
 ---
 
 ## Tech Stack & Architecture

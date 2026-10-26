@@ -917,152 +917,17 @@ fun MealPlateBuilderSheet(
     }
 
     // ==========================================
-    // DIALOG: ADD NEW CUSTOM FOOD
+    // DIALOG: ADD NEW CUSTOM FOOD (PER 100G)
     // ==========================================
     if (showNewFoodDialog) {
-        var foodName by remember { mutableStateOf("") }
-        var foodTelugu by remember { mutableStateOf("") }
-        var foodUnit by remember { mutableStateOf("1 serving") }
-        var foodCalories by remember { mutableStateOf("") }
-        var foodProtein by remember { mutableStateOf("") }
-        var foodCarbs by remember { mutableStateOf("") }
-        var foodFat by remember { mutableStateOf("") }
-        var foodIsVeg by remember { mutableStateOf(true) }
-
-        Dialog(onDismissRequest = { showNewFoodDialog = false }) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = DarkSurfaceElevated,
-                border = androidx.compose.foundation.BorderStroke(1.dp, DarkSurfaceBorder),
-                modifier = Modifier
-                    .fillMaxWidth(0.92f)
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Add Custom Food to Database", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp)
-
-                    OutlinedTextField(
-                        value = foodName,
-                        onValueChange = { foodName = it },
-                        label = { Text("Food Name (e.g. Sambar Rice)", fontSize = 11.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = foodTelugu,
-                        onValueChange = { foodTelugu = it },
-                        label = { Text("Telugu / Regional Hint (e.g. సాంబార్ అన్నం)", fontSize = 11.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = foodUnit,
-                        onValueChange = { foodUnit = it },
-                        label = { Text("Serving Unit (e.g. 1 bowl / 150g)", fontSize = 11.sp) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = foodCalories,
-                            onValueChange = { foodCalories = it },
-                            label = { Text("Calories", fontSize = 11.sp) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = foodProtein,
-                            onValueChange = { foodProtein = it },
-                            label = { Text("Protein (g)", fontSize = 11.sp) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = foodCarbs,
-                            onValueChange = { foodCarbs = it },
-                            label = { Text("Carbs (g)", fontSize = 11.sp) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = foodFat,
-                            onValueChange = { foodFat = it },
-                            label = { Text("Fat (g)", fontSize = 11.sp) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { foodIsVeg = !foodIsVeg }
-                    ) {
-                        VegNonVegBadge(isVeg = foodIsVeg, size = 14.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (foodIsVeg) "Vegetarian" else "Non-Vegetarian",
-                            color = TextPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { showNewFoodDialog = false }) {
-                            Text("Cancel", color = TextSecondary)
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Button(
-                            onClick = {
-                                if (foodName.isNotBlank()) {
-                                    val cals = foodCalories.toIntOrNull() ?: 0
-                                    val prot = foodProtein.toFloatOrNull() ?: 0f
-                                    val carbs = foodCarbs.toFloatOrNull() ?: 0f
-                                    val fat = foodFat.toFloatOrNull() ?: 0f
-                                    val custom = CustomFoodEntity(
-                                        name = foodName,
-                                        teluguOrRegionalHint = foodTelugu,
-                                        category = FoodCategory.CUSTOM.name,
-                                        servingUnit = foodUnit.ifBlank { "1 serving" },
-                                        calories = cals,
-                                        proteinGrams = prot,
-                                        carbsGrams = carbs,
-                                        fatGrams = fat,
-                                        isVegetarian = foodIsVeg,
-                                        isHighProteinPatch = prot >= 10f
-                                    )
-                                    onSaveCustomFood(custom)
-                                    showNewFoodDialog = false
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = ElectricCyan, contentColor = DarkBackground)
-                        ) {
-                            Text("Save Food", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+        AddFoodItemDialog(
+            onDismiss = { showNewFoodDialog = false },
+            onSaveFood = { customFood ->
+                onSaveCustomFood(customFood)
+                addOrIncrementFood(customFood.toFoodItem(), 1.0f)
+                showNewFoodDialog = false
             }
-        }
+        )
     }
 
     // ==========================================

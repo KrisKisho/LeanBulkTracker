@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,7 +59,8 @@ import com.leanbulk.tracker.ui.theme.TextSecondary
 fun AddCustomMealDialog(
     onDismiss: () -> Unit,
     onAddPreset: (MealDataSource.QuickPreset) -> Unit,
-    onAddCustom: (name: String, calories: Int, protein: Int, carbs: Int, fat: Int) -> Unit
+    onAddCustom: (name: String, calories: Int, protein: Int, carbs: Int, fat: Int) -> Unit,
+    onOpenAddFoodCatalog: (() -> Unit)? = null
 ) {
     var name by remember { mutableStateOf("") }
     var calories by remember { mutableStateOf("") }
@@ -98,6 +100,55 @@ fun AddCustomMealDialog(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
+
+                if (onOpenAddFoodCatalog != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ElectricCyan.copy(alpha = 0.12f))
+                            .border(1.dp, ElectricCyan.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .clickable {
+                                onDismiss()
+                                onOpenAddFoodCatalog()
+                            }
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(ElectricCyan.copy(alpha = 0.25f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = ElectricCyan, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Add Item to Food Catalog (Per 100g)",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = ElectricCyan
+                                    )
+                                )
+                                Text(
+                                    text = "Enter nutrition label values per 100g for permanent reuse across all meals",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = TextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
 
                 Text(
                     text = "QUICK SURPLUS PRESETS",

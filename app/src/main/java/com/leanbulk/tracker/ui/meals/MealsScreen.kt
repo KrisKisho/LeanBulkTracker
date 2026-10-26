@@ -43,7 +43,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,6 +83,7 @@ fun MealsScreen(
     val customizingMeal by viewModel.customizingMeal.collectAsState()
     val customFoods by viewModel.customFoods.collectAsState()
     val savedCombos by viewModel.savedCombos.collectAsState()
+    var showAddFoodDialog by remember { mutableStateOf(false) }
 
     val stepPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -100,7 +103,18 @@ fun MealsScreen(
         AddCustomMealDialog(
             onDismiss = { viewModel.closeAddDialog() },
             onAddPreset = { preset -> viewModel.addPresetMeal(preset) },
-            onAddCustom = { name, cal, p, c, f -> viewModel.addCustomMeal(name, cal, p, c, f) }
+            onAddCustom = { name, cal, p, c, f -> viewModel.addCustomMeal(name, cal, p, c, f) },
+            onOpenAddFoodCatalog = { showAddFoodDialog = true }
+        )
+    }
+
+    if (showAddFoodDialog) {
+        AddFoodItemDialog(
+            onDismiss = { showAddFoodDialog = false },
+            onSaveFood = { customFood ->
+                viewModel.saveCustomFood(customFood)
+                Toast.makeText(context, "Added '${customFood.name}' to Food Catalog!", Toast.LENGTH_SHORT).show()
+            }
         )
     }
 
@@ -220,6 +234,22 @@ fun MealsScreen(
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(3.dp))
                         Text("Extra Rice", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1)
+                    }
+
+                    // Direct Add Food (Per 100g) Button into Catalog
+                    Button(
+                        onClick = { showAddFoodDialog = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ElectricCyan.copy(alpha = 0.15f),
+                            contentColor = ElectricCyan
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("+ Food (100g)", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1)
                     }
 
                     // Open Presets & Custom Meal Dialog

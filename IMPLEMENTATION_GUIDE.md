@@ -375,3 +375,35 @@ Output path: `app/build/outputs/apk/debug/app-debug.apk`
 | **Waist Recomp Finisher**| `BellyFatCircuitCatalog.kt` | Video ID `digpucxFbMo`, promo skip (564s->602s), stomach vacuum cue banner | Verified on Device |
 | **Recomp Macros** | `DynamicNutritionEngine.kt` | Surplus shift to +220 kcal, 2.15g/kg protein, dinner rice reduction (-110 kcal) | Verified on Device |
 | **Database Migration v10**| `AppDatabase.kt` | `MIGRATION_9_10` adding `bellyFatRecompMode` and `bellyWorkoutVariant` | Verified on Device |
+
+---
+
+## 9. Food Item & Nutrition Label Entry (Per 100g)
+
+### 9.1 Overview & Architecture
+To enable seamless food tracking from standard nutritional packaging labels (which list nutrition **per 100g** across India and globally), the app integrates `AddFoodItemDialog.kt` directly into the South Indian Food Catalog and Room database.
+
+### 9.2 Core Capabilities
+1. **Per-100g Nutrition Label Input:**
+   - **Calories:** kcal per 100g.
+   - **Protein, Carbohydrates, Fat:** grams per 100g.
+   - **Label Math Validation:** Real-time check comparing reported calories with `(P * 4 + C * 4 + F * 9)`. Highlights labels that are consistent within $\pm 10\%$ or flags discrepancies.
+2. **Portion Sizing Options:**
+   - **Standard 100g Base:** Portion unit is `"100g"`, enabling clean multiplier adjustments in the plate builder (`0.5 = 50g`, `1.0 = 100g`, `1.5 = 150g`, `2.0 = 200g`).
+   - **Custom Household Portion:** Option to specify named portions (e.g., `"1 scoop"`, `"1 bowl"`, `"1 roti"`) with gram weight (e.g., 30g, 150g) and automatically scaled macros.
+3. **Food Category & Regional Name:**
+   - Grouping into 8 categories: `TIFFINS_BREADS`, `RICE_GRAINS`, `DALS_CURRIES`, `NON_VEG_EGGS`, `VEG_PROTEIN_BOOSTERS`, `DAIRY_SHAKES`, `SNACKS`, `CUSTOM`.
+   - Telugu/regional hint input (e.g., "పుట్నాలు", "పనీర్").
+   - Vegetarian / Non-Vegetarian badge toggle.
+   - Automatic High-Protein patch tag when protein $\ge 10\text{g}$.
+4. **Live Catalog Integration:**
+   - Persists permanently to Room SQLite `custom_foods` table (`CustomFoodEntity`).
+   - Immediately appears under `SouthIndianFoodCatalog.search(...)` across all meal plate builders.
+   - Surface points:
+     - Header action button `+ Food (100g)` on `MealsScreen.kt`.
+     - Direct catalog link banner in `AddCustomMealDialog.kt` (`+ More`).
+     - "+ Custom Food" button in `MealPlateBuilderSheet.kt`, which immediately inserts 1 portion into the active plate.
+
+| Feature | Component | Verification Mechanism | Status |
+|---|---|---|---|
+| **100g Food Item Entry** | `AddFoodItemDialog.kt` | Per 100g macro input, live `(4P+4C+9F)` check, preview card & Room persistence | Verified on Device |
