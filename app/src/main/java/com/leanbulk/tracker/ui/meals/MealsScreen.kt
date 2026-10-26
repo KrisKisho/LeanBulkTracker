@@ -186,9 +186,21 @@ fun MealsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val resolvedGoalMode = state.userProfile.resolvedGoalMode
+                val headerTitle = when (resolvedGoalMode) {
+                    "WEIGHT_LOSS" -> "South Indian Fat-Loss Fuel"
+                    "BODY_RECOMP" -> "South Indian Recomp Fuel"
+                    else -> "South Indian Bulk Fuel"
+                }
+                val headerSubtitle = when (resolvedGoalMode) {
+                    "WEIGHT_LOSS" -> "High-Satiety Cut & Muscle-Sparing Engine"
+                    "BODY_RECOMP" -> "Waist Tightening & Muscle Preservation"
+                    else -> "Customizable Portions & Exact Calorie Engine"
+                }
+
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "South Indian Bulk Fuel",
+                        text = headerTitle,
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -197,7 +209,7 @@ fun MealsScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Customizable Portions & Exact Calorie Engine",
+                        text = headerSubtitle,
                         style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -210,30 +222,58 @@ fun MealsScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 1-Tap Quick Extra Rice Button
-                    Button(
-                        onClick = {
-                            viewModel.addPresetMeal(
-                                MealDataSource.QuickPreset(
-                                    label = "+0.5 Cup Steamed Rice",
-                                    calories = 150,
-                                    protein = 3,
-                                    carbs = 34,
-                                    fat = 0
+                    if (resolvedGoalMode == "WEIGHT_LOSS") {
+                        // Quick 2 Boiled Egg Whites Button (+34 kcal | 7g P)
+                        Button(
+                            onClick = {
+                                viewModel.addPresetMeal(
+                                    MealDataSource.QuickPreset(
+                                        label = "+2 Boiled Egg Whites",
+                                        calories = 34,
+                                        protein = 7,
+                                        carbs = 0,
+                                        fat = 0
+                                    )
                                 )
-                            )
-                            Toast.makeText(context, "Added +0.5 Cup Steamed Rice (+150 kcal)", Toast.LENGTH_SHORT).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AmberGold,
-                            contentColor = DarkBackground
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text("Extra Rice", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1)
+                                Toast.makeText(context, "Added +2 Boiled Egg Whites (+34 kcal | 7g P)", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CoralRed,
+                                contentColor = androidx.compose.ui.graphics.Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text("+2 Whites", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1)
+                        }
+                    } else {
+                        // 1-Tap Quick Extra Rice Button
+                        Button(
+                            onClick = {
+                                viewModel.addPresetMeal(
+                                    MealDataSource.QuickPreset(
+                                        label = "+0.5 Cup Steamed Rice",
+                                        calories = 150,
+                                        protein = 3,
+                                        carbs = 34,
+                                        fat = 0
+                                    )
+                                )
+                                Toast.makeText(context, "Added +0.5 Cup Steamed Rice (+150 kcal)", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AmberGold,
+                                contentColor = DarkBackground
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text("Extra Rice", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, maxLines = 1)
+                        }
                     }
 
                     // Direct Add Food (Per 100g) Button into Catalog

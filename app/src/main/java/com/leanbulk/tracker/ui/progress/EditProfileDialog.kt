@@ -20,6 +20,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Warning
+import com.leanbulk.tracker.ui.theme.CoralRed
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.Button
@@ -82,7 +84,11 @@ fun EditProfileDialog(
     var startWeightText by remember { mutableStateOf("%.1f".format(currentProfile.startWeightKg)) }
     var currentWeightText by remember { mutableStateOf("%.1f".format(currentProfile.currentWeightKg)) }
     var goalWeightText by remember { mutableStateOf("%.1f".format(currentProfile.goalWeightKg)) }
-    var weeklyGain by remember { mutableFloatStateOf(currentProfile.targetWeeklyGainKg) }
+    var selectedGoalMode by remember { mutableStateOf(currentProfile.resolvedGoalMode) }
+    var weeklyGain by remember {
+        val initialPace = if (currentProfile.resolvedGoalMode == "WEIGHT_LOSS" && currentProfile.targetWeeklyGainKg < 0.25f) 0.50f else currentProfile.targetWeeklyGainKg
+        mutableFloatStateOf(initialPace)
+    }
 
     var wristText by remember { mutableStateOf(toDisplay(currentProfile.wristInches)) }
     var ankleText by remember { mutableStateOf(toDisplay(currentProfile.ankleInches)) }
@@ -138,6 +144,59 @@ fun EditProfileDialog(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // TRANSFORMATION GOAL MODE SELECTOR
+                Text(
+                    text = "TRANSFORMATION GOAL MODE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = ElectricCyan,
+                        letterSpacing = 0.8.sp
+                    )
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkSurfaceElevated)
+                        .border(1.dp, DarkSurfaceBorder, RoundedCornerShape(12.dp))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    GoalModeTab(
+                        label = "📈 Gain (Bulk)",
+                        isSelected = selectedGoalMode == "LEAN_BULK",
+                        activeColor = NeonLime,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        selectedGoalMode = "LEAN_BULK"
+                        if (weeklyGain < 0.15f || weeklyGain > 0.50f) weeklyGain = 0.30f
+                    }
+
+                    GoalModeTab(
+                        label = "🔥 Lose (Cut)",
+                        isSelected = selectedGoalMode == "WEIGHT_LOSS",
+                        activeColor = CoralRed,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        selectedGoalMode = "WEIGHT_LOSS"
+                        if (weeklyGain < 0.25f || weeklyGain > 0.75f) weeklyGain = 0.50f
+                    }
+
+                    GoalModeTab(
+                        label = "⚖️ Recomp",
+                        isSelected = selectedGoalMode == "BODY_RECOMP",
+                        activeColor = AmberGold,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        selectedGoalMode = "BODY_RECOMP"
+                        weeklyGain = 0.00f
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Unit Toggle: Inches vs CM
                 Row(
@@ -293,20 +352,104 @@ fun EditProfileDialog(
                     ProfileInputField(
                         label = "Current (kg)",
                         value = currentWeightText,
-                        onValueChange = { currentWeightText = it },
+                        onValueChange = {
+                            currentWeightText = it
+                            val cw = it.toFloatOrNull()
+                            val gw = goalWeightText.toFloatOrNull() ?: currentProfile.goalWeightKg
+                            if (cw != null) {
+                                if (gw < cw - 0.5f) {
+                                    selectedGoalMode = "WEIGHT_LOSS"
+                                    if (weeklyGain < 0.25f || weeklyGain > 0.75f) weeklyGain = 0.50f
+                                } else if (gw > cw + 0.5f) {
+                                    selectedGoalMode = "LEAN_BULK"
+                                    if (weeklyGain < 0.15f || weeklyGain > 0.50f) weeklyGain = 0.30f
+                                } else {
+                                    selectedGoalMode = "BODY_RECOMP"
+                                    weeklyGain = 0.00f
+                                }
+                            }
+                        },
                         modifier = Modifier.weight(1f)
                     )
                     ProfileInputField(
                         label = "Goal (kg)",
                         value = goalWeightText,
-                        onValueChange = { goalWeightText = it },
+                        onValueChange = {
+                            goalWeightText = it
+                            val gw = it.toFloatOrNull()
+                            val cw = currentWeightText.toFloatOrNull() ?: currentProfile.currentWeightKg
+                            if (gw != null) {
+                                if (gw < cw - 0.5f) {
+                                    selectedGoalMode = "WEIGHT_LOSS"
+                                    if (weeklyGain < 0.25f || weeklyGain > 0.75f) weeklyGain = 0.50f
+                                } else if (gw > cw + 0.5f) {
+                                    selectedGoalMode = "LEAN_BULK"
+                                    if (weeklyGain < 0.15f || weeklyGain > 0.50f) weeklyGain = 0.30f
+                                } else {
+                                    selectedGoalMode = "BODY_RECOMP"
+                                    weeklyGain = 0.00f
+                                }
+                            }
+                        },
                         modifier = Modifier.weight(1f)
                     )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Target Weekly Gain Slider (0.15 to 0.50 kg/wk)
+                // Healthy BMI Safety Guardrail (Calculated live from Height & Goal Weight)
+                val heightCmVal = heightCmText.toFloatOrNull() ?: currentProfile.heightCm
+                val goalWeightKgVal = goalWeightText.toFloatOrNull() ?: currentProfile.goalWeightKg
+                val heightMVal = heightCmVal / 100f
+                val goalBmi = if (heightMVal > 0f) goalWeightKgVal / (heightMVal * heightMVal) else 22f
+                val minHealthyWeightKg = 19.0f * (heightMVal * heightMVal)
+
+                if (goalBmi < 19.0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AmberGold.copy(alpha = 0.15f))
+                            .border(1.dp, AmberGold.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                            .padding(12.dp)
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = AmberGold, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Healthy BMI Safety Guardrail",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = AmberGold
+                                    )
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Goal BMI of %.1f is below the clinical minimum healthy threshold (19.0). Recommended minimum healthy goal weight for %d cm is %.1f kg.".format(goalBmi, heightCmVal.toInt(), minHealthyWeightKg),
+                                style = MaterialTheme.typography.bodySmall.copy(color = TextPrimary, fontSize = 11.5.sp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Button(
+                                onClick = {
+                                    goalWeightText = "%.1f".format(minHealthyWeightKg)
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = AmberGold,
+                                    contentColor = DarkBackground
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text("Reset to Min Healthy Weight (%.1f kg)".format(minHealthyWeightKg), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // Target Weekly Pace Slider (Dynamic based on selectedGoalMode)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -315,35 +458,82 @@ fun EditProfileDialog(
                         .border(1.dp, DarkSurfaceBorder, RoundedCornerShape(12.dp))
                         .padding(12.dp)
                 ) {
+                    val paceTitle = when (selectedGoalMode) {
+                        "WEIGHT_LOSS" -> "Target Weekly Fat Loss Pace"
+                        "BODY_RECOMP" -> "Target Weekly Recomp Pace"
+                        else -> "Target Weekly Gain Pace"
+                    }
+                    val paceFormatted = when (selectedGoalMode) {
+                        "WEIGHT_LOSS" -> "-%.2f kg / week".format(weeklyGain)
+                        "BODY_RECOMP" -> "±%.2f kg / week".format(weeklyGain)
+                        else -> "+%.2f kg / week".format(weeklyGain)
+                    }
+                    val paceColor = when (selectedGoalMode) {
+                        "WEIGHT_LOSS" -> CoralRed
+                        "BODY_RECOMP" -> AmberGold
+                        else -> NeonLime
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Target Weekly Gain Pace",
+                            text = paceTitle,
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold, color = TextPrimary)
                         )
                         Text(
-                            text = "+%.2f kg / week".format(weeklyGain),
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = NeonLime)
+                            text = paceFormatted,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = paceColor)
                         )
                     }
 
-                    Slider(
-                        value = weeklyGain,
-                        onValueChange = { weeklyGain = (it * 20).toInt() / 20f },
-                        valueRange = 0.15f..0.50f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = NeonLime,
-                            activeTrackColor = NeonLime,
-                            inactiveTrackColor = DarkSurfaceBorder
+                    if (selectedGoalMode == "WEIGHT_LOSS") {
+                        Slider(
+                            value = weeklyGain.coerceIn(0.25f, 0.75f),
+                            onValueChange = { weeklyGain = (it * 20).toInt() / 20f },
+                            valueRange = 0.25f..0.75f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = CoralRed,
+                                activeTrackColor = CoralRed,
+                                inactiveTrackColor = DarkSurfaceBorder
+                            )
                         )
-                    )
-
-                    Text(
-                        text = "Recommended Lean Bulk Zone: +0.25 to +0.35 kg/week (+275 to +385 kcal surplus)",
-                        style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontSize = 11.sp)
-                    )
+                        Text(
+                            text = "Recommended Fat Loss Zone: -0.25 to -0.75 kg/week (-275 to -750 kcal deficit)",
+                            style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontSize = 11.sp)
+                        )
+                    } else if (selectedGoalMode == "BODY_RECOMP") {
+                        Slider(
+                            value = weeklyGain.coerceIn(0.00f, 0.20f),
+                            onValueChange = { weeklyGain = (it * 20).toInt() / 20f },
+                            valueRange = 0.00f..0.20f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = AmberGold,
+                                activeTrackColor = AmberGold,
+                                inactiveTrackColor = DarkSurfaceBorder
+                            )
+                        )
+                        Text(
+                            text = "Body Recomp Zone: Maintain scale weight while trimming navel waist & building muscle frame",
+                            style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontSize = 11.sp)
+                        )
+                    } else {
+                        Slider(
+                            value = weeklyGain.coerceIn(0.15f, 0.50f),
+                            onValueChange = { weeklyGain = (it * 20).toInt() / 20f },
+                            valueRange = 0.15f..0.50f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = NeonLime,
+                                activeTrackColor = NeonLime,
+                                inactiveTrackColor = DarkSurfaceBorder
+                            )
+                        )
+                        Text(
+                            text = "Recommended Lean Bulk Zone: +0.25 to +0.35 kg/week (+275 to +385 kcal surplus)",
+                            style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontSize = 11.sp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -457,6 +647,7 @@ fun EditProfileDialog(
                             currentWeightKg = currentWeightText.toFloatOrNull() ?: currentProfile.currentWeightKg,
                             goalWeightKg = goalWeightText.toFloatOrNull() ?: currentProfile.goalWeightKg,
                             targetWeeklyGainKg = weeklyGain,
+                            goalMode = selectedGoalMode,
                             wristInches = parsedWrist,
                             ankleInches = parsedAnkle,
                             currentWaistInches = fromDisplay(waistText, currentProfile.currentWaistInches),
@@ -535,6 +726,37 @@ private fun ProfileInputField(
             ),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun GoalModeTab(
+    label: String,
+    isSelected: Boolean,
+    activeColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isSelected) activeColor.copy(alpha = 0.22f) else Color.Transparent)
+            .border(
+                1.dp,
+                if (isSelected) activeColor else Color.Transparent,
+                RoundedCornerShape(8.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (isSelected) activeColor else TextSecondary,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            fontSize = 11.5.sp,
+            maxLines = 1
         )
     }
 }

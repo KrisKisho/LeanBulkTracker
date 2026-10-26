@@ -30,7 +30,8 @@ data class AdaptiveStatusInfo(
     val eveningStrategy: String,
     val isSplitShakeActive: Boolean,
     val whtr: Float,
-    val lastEvalDate: String
+    val lastEvalDate: String,
+    val goalMode: String = "LEAN_BULK"
 )
 
 data class AdaptationResult(
@@ -155,56 +156,133 @@ object AdaptiveCoachEngine {
                 0f
             }
 
-            // Case 2 check: Waist Guardrail / Rapid Fat Accumulation
-            val isWaistTrigger = (profile.whtr > 0.48f) || (waistDelta14d >= 0.40f) || (weeklyGainRate > 0.50f)
+            val resolvedMode = profile.resolvedGoalMode
 
-            if (isWaistTrigger) {
-                val newOffset = (oldOffset - 150).coerceAtLeast(-300)
-                val newStepGoal = updatedProfile.dailyStepGoal.coerceAtLeast(8500)
-                if (newOffset != oldOffset || newStepGoal != updatedProfile.dailyStepGoal || force) {
+            if (resolvedMode == "WEIGHT_LOSS") {
+                // WEIGHT LOSS CLOSED-LOOP ADAPTATION
+                val weeklyLossRate = -weeklyGainRate // Positive means losing weight
+                val minSafeCalories = maxOf(
+                    if (profile.sex.equals("Female", ignoreCase = true)) {
+                        (10f * profile.currentWeightKg) + (6.25f * profile.heightCm) - (5f * profile.age) - 161f
+                    } else {
+                        (10f * profile.currentWeightKg) + (6.25f * profile.heightCm) - (5f * profile.age) + 5f
+                    }.roundToInt(),
+                    1200
+                )
+                val currentDynamicTarget = (profile.effectiveBaseCalories)
+
+                if (weeklyLossRate < 0.15f && adherenceRatio >= 0.80f) {
+                    // Plateau detected in fat loss (<0.15 kg/wk)
+                    if (currentDynamicTarget > minSafeCalories + 150) {
+                        val newOffset = oldOffset - 150
+                        val newStepGoal = (updatedProfile.dailyStepGoal + 1500).coerceAtMost(10000)
+                        updatedProfile = updatedProfile.copy(
+                            adaptiveCalorieOffset = newOffset,
+                            dailyStepGoal = newStepGoal,
+                            lastAdaptationEvalDate = todayStr
+                        )
+                        database.userProfileDao().upsertUserProfile(updatedProfile)
+                        database.adaptationLogDao().insert(
+                            AdaptationLogEntity(
+                                date = todayStr,
+                                category = "FAT_LOSS_PLATEAU",
+                                title = "Fat Loss Plateau: Trimmed 150 kcal & Boosted Steps",
+                                reason = "Weight loss pace was %.2f kg/wk (<0.15 kg/wk) despite %d%% adherence. Trimming lunch rice (-150 kcal) and raising steps to %d/day.".format(weeklyLossRate, (adherenceRatio * 100).roundToInt(), newStepGoal),
+                                parameterChanged = "adaptiveCalorieOffset: $oldOffset -> $newOffset kcal | dailyStepGoal: ${profileEntity.dailyStepGoal} -> $newStepGoal"
+                            )
+                        )
+                        changesApplied.add("Fat Loss Plateau: Trimmed 150 kcal & step goal boosted to $newStepGoal")
+                    } else {
+                        // At or near safety floor: do NOT cut food further, add brisk walking steps
+                        val newStepGoal = (updatedProfile.dailyStepGoal + 2000).coerceAtMost(12000)
+                        updatedProfile = updatedProfile.copy(
+                            dailyStepGoal = newStepGoal,
+                            lastAdaptationEvalDate = todayStr
+                        )
+                        database.userProfileDao().upsertUserProfile(updatedProfile)
+                        database.adaptationLogDao().insert(
+                            AdaptationLogEntity(
+                                date = todayStr,
+                                category = "FAT_LOSS_SAFETY_FLOOR",
+                                title = "Safety Floor Active: Kept Food Safe & Added Walking Steps",
+                                reason = "Current intake is near BMR / 1,200 kcal clinical safety floor. Food calories were preserved to spare thyroid & metabolism; adding +2,000 steps/day (two 10-min brisk walks).",
+                                parameterChanged = "dailyStepGoal: ${profileEntity.dailyStepGoal} -> $newStepGoal | Calories preserved at safety floor ($minSafeCalories kcal)"
+                            )
+                        )
+                        changesApplied.add("Safety Floor Active: Preserved food calories and added +2,000 steps/day")
+                    }
+                } else if (weeklyLossRate > 1.0f) {
+                    // Losing too fast (>1.0 kg/wk) - Muscle protection
+                    val newOffset = oldOffset + 150
                     updatedProfile = updatedProfile.copy(
                         adaptiveCalorieOffset = newOffset,
-                        dailyStepGoal = newStepGoal,
                         lastAdaptationEvalDate = todayStr
                     )
                     database.userProfileDao().upsertUserProfile(updatedProfile)
-
-                    val gainFormatted = String.format("%.2f", weeklyGainRate)
-                    val whtrFormatted = String.format("%.3f", profile.whtr)
                     database.adaptationLogDao().insert(
                         AdaptationLogEntity(
                             date = todayStr,
-                            category = "WAIST_GUARDRAIL",
-                            title = "Waist Guardrail Triggered: Trimmed Surplus & Raised Steps",
-                            reason = "Waist/Height ratio is $whtrFormatted (limit 0.48) or weekly gain was +$gainFormatted kg/wk. Reducing carb surplus to prioritize lean mass.",
-                            parameterChanged = "adaptiveCalorieOffset: $oldOffset -> $newOffset kcal | dailyStepGoal: ${profileEntity.dailyStepGoal} -> $newStepGoal | Protein: 2.15 g/kg"
+                            category = "MUSCLE_PROTECTION",
+                            title = "Muscle Protection: Slowing Fat Loss to <1.0 kg/wk",
+                            reason = "Weight loss was %.2f kg/wk (>1.0 kg/wk). Adding +150 kcal (+1 Boiled Egg + 1 Phulka) to prevent lean tissue catabolism.".format(weeklyLossRate),
+                            parameterChanged = "adaptiveCalorieOffset: $oldOffset -> $newOffset kcal | +150 kcal added for muscle sparing"
                         )
                     )
-                    changesApplied.add("Waist Guardrail: Surplus trimmed by 150 kcal, step goal raised to $newStepGoal")
+                    changesApplied.add("Muscle Protection: Added +150 kcal to keep fat loss in safe <1.0 kg/wk zone")
                 }
-            } else if (adherenceRatio >= 0.80f && weeklyGainRate < (profile.targetWeeklyGainKg * 0.55f)) {
-                // Case 1: Plateau Detected (and adherence was good)
-                val newOffset = (oldOffset + 150).coerceAtMost(600)
-                if (newOffset != oldOffset || force) {
-                    updatedProfile = updatedProfile.copy(
-                        adaptiveCalorieOffset = newOffset,
-                        lastAdaptationEvalDate = todayStr
-                    )
-                    database.userProfileDao().upsertUserProfile(updatedProfile)
+            } else {
+                // LEAN BULK & RECOMP ADAPTATION
+                // Case 2 check: Waist Guardrail / Rapid Fat Accumulation
+                val isWaistTrigger = (profile.whtr > 0.48f) || (waistDelta14d >= 0.40f) || (weeklyGainRate > 0.50f)
 
-                    val gainFormatted = String.format("%.2f", weeklyGainRate)
-                    val targetFormatted = String.format("%.2f", profile.targetWeeklyGainKg)
-                    val adherencePct = (adherenceRatio * 100).roundToInt()
-                    database.adaptationLogDao().insert(
-                        AdaptationLogEntity(
-                            date = todayStr,
-                            category = "NUTRITION",
-                            title = "Auto-Boosted Daily Surplus by +150 kcal",
-                            reason = "7-day EWMA gain was +$gainFormatted kg/wk vs target +$targetFormatted kg/wk despite $adherencePct% adherence.",
-                            parameterChanged = "adaptiveCalorieOffset: $oldOffset -> $newOffset kcal | Breakfast & Shake scaled +75 kcal each"
+                if (isWaistTrigger) {
+                    val newOffset = (oldOffset - 150).coerceAtLeast(-300)
+                    val newStepGoal = updatedProfile.dailyStepGoal.coerceAtLeast(8500)
+                    if (newOffset != oldOffset || newStepGoal != updatedProfile.dailyStepGoal || force) {
+                        updatedProfile = updatedProfile.copy(
+                            adaptiveCalorieOffset = newOffset,
+                            dailyStepGoal = newStepGoal,
+                            lastAdaptationEvalDate = todayStr
                         )
-                    )
-                    changesApplied.add("Plateau Detected: Daily target auto-boosted by +150 kcal")
+                        database.userProfileDao().upsertUserProfile(updatedProfile)
+
+                        val gainFormatted = String.format("%.2f", weeklyGainRate)
+                        val whtrFormatted = String.format("%.3f", profile.whtr)
+                        database.adaptationLogDao().insert(
+                            AdaptationLogEntity(
+                                date = todayStr,
+                                category = "WAIST_GUARDRAIL",
+                                title = "Waist Guardrail Triggered: Trimmed Surplus & Raised Steps",
+                                reason = "Waist/Height ratio is $whtrFormatted (limit 0.48) or weekly gain was +$gainFormatted kg/wk. Reducing carb surplus to prioritize lean mass.",
+                                parameterChanged = "adaptiveCalorieOffset: $oldOffset -> $newOffset kcal | dailyStepGoal: ${profileEntity.dailyStepGoal} -> $newStepGoal | Protein: 2.15 g/kg"
+                            )
+                        )
+                        changesApplied.add("Waist Guardrail: Surplus trimmed by 150 kcal, step goal raised to $newStepGoal")
+                    }
+                } else if (adherenceRatio >= 0.80f && weeklyGainRate < (profile.targetWeeklyGainKg * 0.55f)) {
+                    // Case 1: Plateau Detected (and adherence was good)
+                    val newOffset = (oldOffset + 150).coerceAtMost(600)
+                    if (newOffset != oldOffset || force) {
+                        updatedProfile = updatedProfile.copy(
+                            adaptiveCalorieOffset = newOffset,
+                            lastAdaptationEvalDate = todayStr
+                        )
+                        database.userProfileDao().upsertUserProfile(updatedProfile)
+
+                        val gainFormatted = String.format("%.2f", weeklyGainRate)
+                        val targetFormatted = String.format("%.2f", profile.targetWeeklyGainKg)
+                        val adherencePct = (adherenceRatio * 100).roundToInt()
+                        database.adaptationLogDao().insert(
+                            AdaptationLogEntity(
+                                date = todayStr,
+                                category = "NUTRITION",
+                                title = "Auto-Boosted Daily Surplus by +150 kcal",
+                                reason = "7-day EWMA gain was +$gainFormatted kg/wk vs target +$targetFormatted kg/wk despite $adherencePct% adherence.",
+                                parameterChanged = "adaptiveCalorieOffset: $oldOffset -> $newOffset kcal | Breakfast & Shake scaled +75 kcal each"
+                            )
+                        )
+                        changesApplied.add("Plateau Detected: Daily target auto-boosted by +150 kcal")
+                    }
                 }
             }
         }
@@ -465,7 +543,8 @@ object AdaptiveCoachEngine {
             eveningStrategy = eveningStrategy,
             isSplitShakeActive = profile.splitShakeModeActive,
             whtr = profile.whtr,
-            lastEvalDate = profile.lastAdaptationEvalDate
+            lastEvalDate = profile.lastAdaptationEvalDate,
+            goalMode = profile.resolvedGoalMode
         )
     }
 }

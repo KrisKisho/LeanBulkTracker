@@ -125,9 +125,9 @@ fun WorkoutScreen(
             )
         }
 
-        if (state.bellyFatRecompMode) {
+        if (state.bellyFatRecompMode || state.goalMode == "WEIGHT_LOSS" || state.goalMode == "BODY_RECOMP") {
             item {
-                WaistRecompBanner()
+                WaistRecompBanner(state.goalMode)
             }
         }
 
@@ -1485,7 +1485,23 @@ fun AdaptiveWorkoutCoachBanner(
 
 
 @Composable
-fun WaistRecompBanner() {
+fun WaistRecompBanner(goalMode: String = "AUTO") {
+    val title = when (goalMode) {
+        "WEIGHT_LOSS" -> "FAT-LOSS & CUTTING ENGINE ACTIVE"
+        "BODY_RECOMP" -> "BODY RECOMPOSITION ACTIVE"
+        else -> "WAIST RECOMP ACTIVE"
+    }
+    val subtitle = when (goalMode) {
+        "WEIGHT_LOSS" -> "Alex Crockford Muscle-Sparing Workouts + digpucxFbMo Metabolic Core Finisher (95 kcal burn)"
+        "BODY_RECOMP" -> "Maintain scale weight while trimming waist fat & building muscle frame"
+        else -> "+220 kcal Lean Surplus • 95 kcal Core Finisher Burn (Not Eaten Back)"
+    }
+    val iconEmoji = when (goalMode) {
+        "WEIGHT_LOSS" -> "🔥"
+        "BODY_RECOMP" -> "⚖️"
+        else -> "🔥"
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1505,12 +1521,12 @@ fun WaistRecompBanner() {
                     .background(CoralRed.copy(alpha = 0.25f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = "🔥", fontSize = 14.sp)
+                Text(text = iconEmoji, fontSize = 14.sp)
             }
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "WAIST RECOMP ACTIVE",
+                    text = title,
                     style = MaterialTheme.typography.labelSmall.copy(
                         color = CoralRed,
                         fontWeight = FontWeight.Bold,
@@ -1518,7 +1534,7 @@ fun WaistRecompBanner() {
                     )
                 )
                 Text(
-                    text = "+220 kcal Lean Surplus • 95 kcal Core Finisher Burn (Not Eaten Back)",
+                    text = subtitle,
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = TextPrimary,
                         fontSize = 11.5.sp,

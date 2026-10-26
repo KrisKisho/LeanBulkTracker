@@ -75,7 +75,7 @@ fun BodyDimensionForecastCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Lean Bulk Growth vs. McCallum Symmetry",
+                        text = if (forecast.isWeightLossMode) "Waist Drop & Lean Mass Preservation vs. Symmetry" else "Lean Bulk Growth vs. McCallum Symmetry",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = TextSecondary,
                             fontSize = 11.sp
@@ -93,11 +93,13 @@ fun BodyDimensionForecastCard(
                         .border(1.dp, ElectricCyan.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
+                    val badgeText = if (forecast.isWeightLossMode) "Cut Goal: %.1f kg".format(forecast.goalWeightKg) else "Goal: %.1f kg".format(forecast.goalWeightKg)
+                    val badgeColor = if (forecast.isWeightLossMode) CoralRed else ElectricCyan
                     Text(
-                        text = "Goal: %.1f kg".format(forecast.goalWeightKg),
+                        text = badgeText,
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = ElectricCyan
+                            color = badgeColor
                         ),
                         maxLines = 1,
                         softWrap = false
@@ -122,7 +124,7 @@ fun BodyDimensionForecastCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Weight Trajectory",
+                        text = if (forecast.isWeightLossMode) "Fat-Loss Trajectory" else "Weight Trajectory",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = TextPrimary

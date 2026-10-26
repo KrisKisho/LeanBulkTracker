@@ -42,7 +42,8 @@ data class WorkoutUiState(
     val showInventoryDialog: Boolean = false,
     val bellyFatRecompMode: Boolean = true,
     val bellyWorkoutVariant: String = "AUTO",
-    val finisherSegments: List<WorkoutSegment> = emptyList()
+    val finisherSegments: List<WorkoutSegment> = emptyList(),
+    val goalMode: String = "LEAN_BULK"
 ) {
     val activeMesocyclePhase: MesocyclePhase
         get() = MesocyclePhase.fromWeek(activeCycleWeek)
@@ -176,7 +177,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 HomeGymInventory()
             }
 
-            val recompMode = profileEntity?.bellyFatRecompMode ?: true
+            val isCutting = profileEntity?.resolvedGoalMode == "WEIGHT_LOSS"
+            val recompMode = isCutting || (profileEntity?.bellyFatRecompMode ?: true)
             val variant = profileEntity?.bellyWorkoutVariant ?: "AUTO"
             val logMap = workoutLogs.associateBy { it.segmentId }
             val rawFinisher = BellyFatCircuitCatalog.getSegments(variant, meta.day)
@@ -204,7 +206,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 showInventoryDialog = showDialog,
                 bellyFatRecompMode = recompMode,
                 bellyWorkoutVariant = variant,
-                finisherSegments = finisherWithStatus
+                finisherSegments = finisherWithStatus,
+                goalMode = profileEntity?.resolvedGoalMode ?: "LEAN_BULK"
             )
         }
     }.stateIn(

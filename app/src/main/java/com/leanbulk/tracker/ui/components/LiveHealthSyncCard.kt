@@ -174,12 +174,30 @@ fun LiveHealthSyncCard(
                         text = "${nutritionTarget.dynamicCalorieTarget} kcal",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = NeonLime)
                     )
-                    val diff = nutritionTarget.dynamicCalorieTarget - 2420
+                    val isCutting = nutritionTarget.goalMode == "WEIGHT_LOSS"
+                    val isRecomp = nutritionTarget.goalMode == "BODY_RECOMP"
+                    val diff = if (isCutting) {
+                        nutritionTarget.totalTodayTDEE - nutritionTarget.dynamicCalorieTarget
+                    } else {
+                        nutritionTarget.dynamicCalorieTarget - 2420
+                    }
+                    val diffText = when {
+                        isCutting -> "-$diff kcal cut"
+                        isRecomp -> "-100 kcal recomp"
+                        diff >= 0 -> "+$diff kcal bulk"
+                        else -> "$diff kcal"
+                    }
+                    val diffColor = when {
+                        isCutting -> CoralRed
+                        isRecomp -> AmberGold
+                        diff >= 150 -> NeonLime
+                        else -> TextMuted
+                    }
                     Text(
-                        text = if (diff >= 0) "+$diff kcal bulk" else "$diff kcal",
+                        text = diffText,
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 10.sp,
-                            color = if (diff >= 150) NeonLime else TextMuted,
+                            color = diffColor,
                             fontWeight = FontWeight.Bold
                         )
                     )
@@ -281,6 +299,39 @@ fun LiveHealthSyncCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Fat-Loss Bonus Banner (for WEIGHT_LOSS mode)
+            if (nutritionTarget.goalMode == "WEIGHT_LOSS") {
+                val totalBurn = nutritionTarget.stepCaloriesBurned + nutritionTarget.workoutBurn
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CoralRed.copy(alpha = 0.12f))
+                        .border(1.dp, CoralRed.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocalFireDepartment,
+                            contentDescription = null,
+                            tint = CoralRed,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "🔥 Fat-Loss Bonus: $totalBurn kcal burned from steps & workout! Deficit is actively mobilizing body fat.",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = TextPrimary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
             // Quick Step Test/Simulation Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -324,7 +375,7 @@ fun LiveHealthSyncCard(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "High Burn Top-Up Recommendation",
+                                    text = topUp.title,
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         color = AmberGold

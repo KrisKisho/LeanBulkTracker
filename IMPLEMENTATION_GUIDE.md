@@ -407,3 +407,80 @@ To enable seamless food tracking from standard nutritional packaging labels (whi
 | Feature | Component | Verification Mechanism | Status |
 |---|---|---|---|
 | **100g Food Item Entry** | `AddFoodItemDialog.kt` | Per 100g macro input, live `(4P+4C+9F)` check, preview card & Room persistence | Verified on Device |
+
+---
+
+## 10. Dual-Mode Transformation Engine (Lean Bulk, Weight Loss, and Body Recomp)
+
+### 10.1 Overview & Architecture
+The Dual-Mode Transformation Engine seamlessly shifts the app between three body transformation targets:
+1. `LEAN_BULK` (Weight Gain: Start Weight < Goal Weight)
+2. `WEIGHT_LOSS` (Fat Loss / Cutting: Start Weight > Goal Weight)
+3. `BODY_RECOMP` (Maintain Scale Weight while trimming waist fat and building lean muscle)
+
+The engine coordinates dynamic nutrition calculations, meal plan templates, exercise finisher automation, body dimension modeling, adaptive coaching, and Room database migrations.
+
+### 10.2 Goal Mode Detection & Safety Guardrails
+- **3-Segment Mode Selector:** `[ 📈 Gain Weight (Bulk) ]  [ 🔥 Lose Weight (Cut) ]  [ ⚖️ Recomp ]` in `EditProfileDialog.kt`.
+- **Dynamic Auto-Detection:** Automatically switches modes when editing `goalWeightKg`:
+  - `goalWeightKg < currentWeightKg - 0.5f` -> `WEIGHT_LOSS`
+  - `goalWeightKg > currentWeightKg + 0.5f` -> `LEAN_BULK`
+  - Otherwise -> `BODY_RECOMP`
+- **Dynamic Target Weekly Pace Slider:**
+  - `LEAN_BULK`: `0.15` to `0.50 kg/week` (Default: `0.30 kg/week`)
+  - `WEIGHT_LOSS`: `0.25` to `0.75 kg/week` (Default: `0.50 kg/week`)
+- **Healthy BMI Safety Floor:**
+  - BMI = goalWeightKg / ((heightCm / 100)^2)
+  - When BMI < 19.0, displays an amber safety guardrail warning card and a 1-tap 'Reset to Min Healthy Weight' button clamping to 19.0 * ((heightCm / 100)^2) (e.g., 52.4 kg at 166 cm).
+
+### 10.3 Dual-Mode Dynamic Nutrition Engine
+- **Mifflin-St Jeor BMR & TDEE:**
+  - BMR = 10 * weight + 6.25 * height - 5 * age + 5 (Male)
+  - TDEE = (BMR * 1.2) + stepBurn + workoutBurn
+- **Weight Loss Mode Targets:**
+  - Daily deficit: (targetWeeklyPaceKg * 7700) / 7 clamped between 300 kcal and 750 kcal/day.
+  - Mandatory clinical safety floor: minSafeCalories = max(BMR, 1200 kcal).
+  - High muscle-sparing protein: 2.15g/kg bodyweight.
+  - Essential hormone fat floor: max(0.85g/kg, 45g).
+  - Satiating South Indian complex carbohydrates: remaining calories.
+- **Body Recomp Mode Targets:**
+  - -100 kcal buffer, 2.2g/kg protein.
+- **Step & Cardio Sync:**
+  - Step target set to 8,500 steps/day.
+  - First 300 kcal of step burn is retained as pure fat mobilization without prompting to eat back:
+    '🔥 Fat-Loss Bonus: [X] kcal burned from steps & workout! Deficit is actively mobilizing body fat.'
+  - **Over-Deficit Muscle Protection Guardrail:** When total deficit exceeds 750 kcal or approaches BMR floor, prompts 1-tap Lean Muscle-Sparing Refuel card (+3 Boiled Egg Whites + 1 Glass Spiced Buttermilk Majjiga (+95 kcal | 14g P)).
+
+### 10.4 High-Satiety South Indian Fat-Loss Meal Plan
+When `goalMode == "WEIGHT_LOSS"`, the 5 default meal slots switch to the high-satiety cut template (~1,680 kcal | 135g Protein):
+1. **8:15 AM - High-Protein Tiffin (~360 kcal | 25g P):** 3 Steamed Idlis (or 2 Pesarattu) + 1 bowl Sambar + 1 tbsp Allam Chutney + 2 Whole Boiled Eggs + 2 Boiled Egg Whites.
+2. **11:00 AM - Lean Protein & Gut Refresher (~175 kcal | 27g P):** 1 Scoop Whey in water + 1 glass Spiced Majjiga (Buttermilk).
+3. **1:30 PM - High-Volume South Indian Cut Lunch (~450 kcal | 39g P):** 1 cup Rice + 150g Low-Oil Chicken Curry (or 50g Soya Chunks) + Double portion Cabbage/Beans Poriyal (2 katoris) + 1 cup Pepper Rasam.
+4. **5:30 PM - Pre-Workout Metabolism Booster (~210 kcal | 12g P):** 0.75 cup Steamed Kala Chana / Moong Sprouts Sundal + Cucumber + Black Filter Coffee (no sugar).
+5. **8:30 PM - Light Recovery Dinner (~435 kcal | 29g P):** 2 Whole-Wheat Phulkas + 2-Egg Curry (or 100g Paneer Bhurji / Palakura Pappu) + 1 cup Low-Fat Curd (Perugu).
+- Includes **+2 Whites** quick top-up button (+34 kcal | 7g P) on the header.
+
+### 10.5 Weight-Loss Body Dimension & Waist Reduction Forecast
+- **Waist Reduction Model:** Every 1.0 kg fat loss reduces navel waist by 0.36 inches (0.91 cm):
+  projectedWaistAtGoal = (currentWaistInches - (currentWeightKg - goalWeightKg) * 0.36) >= (heightCm * 0.41) / 2.54
+- Shows athletic target Waist-to-Height Ratio (WHtR) dropping into 0.43 - 0.46.
+- **Muscle Preservation Modeling:** Reflects 97 - 100% lean girth retention in Chest, Arms, Forearms, and Shoulders due to progressive overload and 2.15g/kg protein. Status badges include: 'Waist -X.X" Drop', 'Muscle Preserved', and 'V-Taper Improved'.
+
+### 10.6 Workout Finisher & Adaptive Coach Loop
+- **Workout Finisher:** Automatically activates YouTube video ID `digpucxFbMo` (8-Move Belly Fat & Core Circuit) as the metabolic finisher on Mon, Wed, Fri, Sat, and Sun. Displays 'FAT-LOSS & CUTTING ENGINE ACTIVE' banner.
+- **Adaptive Coach Plateau Logic:**
+  - If weekly loss rate < 0.15 kg/week over 14 days with >= 80% adherence: cuts -150 kcal and adds +1,500 steps/day. If at BMR/1200 safety floor, prevents calorie reduction and adds +2,000 steps/day.
+  - If loss rate > 1.0 kg/week (too fast): adds +150 kcal to protect lean muscle mass.
+
+### 10.7 Verification & QA Summary
+
+| Feature | Component | Verification Mechanism | Status |
+|---|---|---|---|
+| **Goal Mode Selector & Guardrail** | `EditProfileDialog.kt` | 3-mode selector, auto-detection, pace slider, BMI < 19 warning | Verified on Device |
+| **Dual-Mode Calorie & Macro Engine** | `DynamicNutritionEngine.kt` | Deficit cap (750 kcal), BMR floor, 2.15g/kg protein, Fat-Loss Bonus | Verified on Device |
+| **South Indian Cut Meal Plan** | `MealsScreen.kt` & `MealModels.kt` | 5 fat-loss meal slots (~1,680 kcal, 135g P), +2 Whites button | Verified on Device |
+| **Waist Reduction & Muscle Preservation** | `BodyDimensionCalculator.kt` | -0.36"/kg waist formula, WHtR athletic target, 97-100% preservation | Verified on Device |
+| **Workout Finisher & Cutting Banner** | `WorkoutScreen.kt` | digpucxFbMo auto-finisher, FAT-LOSS ENGINE ACTIVE banner | Verified on Device |
+| **Adaptive Coach Fat-Loss Loop** | `AdaptiveCoachEngine.kt` | Plateau trimmer (-150 kcal, +1500 steps) & fast-loss guardrail | Verified on Device |
+| **Database Migration v11** | `AppDatabase.kt` | `MIGRATION_10_11` SQLite execution adding `goalMode` | Verified on Device |
+| **JSON Backup/Restore v11** | `DataBackupManager.kt` | Full export & import of `goalMode` without data loss | Verified on Device |

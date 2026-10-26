@@ -55,8 +55,18 @@ data class UserProfileEntity(
     val eqHasPullUpBar: Boolean = false,
     val eqHasResistanceBand: Boolean = false,
     val bellyFatRecompMode: Boolean = true,
-    val bellyWorkoutVariant: String = "AUTO"
+    val bellyWorkoutVariant: String = "AUTO",
+    val goalMode: String = "AUTO"
 ) {
+    val resolvedGoalMode: String
+        get() {
+            if (goalMode != "AUTO") return goalMode
+            return when {
+                goalWeightKg < currentWeightKg - 0.5f -> "WEIGHT_LOSS"
+                goalWeightKg > currentWeightKg + 0.5f -> "LEAN_BULK"
+                else -> "BODY_RECOMP"
+            }
+        }
     fun toModel(): UserProfile = UserProfile(
         id = id,
         age = age,
@@ -103,7 +113,8 @@ data class UserProfileEntity(
         eqHasPullUpBar = eqHasPullUpBar,
         eqHasResistanceBand = eqHasResistanceBand,
         bellyFatRecompMode = bellyFatRecompMode,
-        bellyWorkoutVariant = bellyWorkoutVariant
+        bellyWorkoutVariant = bellyWorkoutVariant,
+        goalMode = goalMode
     )
 
     companion object {
@@ -153,7 +164,8 @@ data class UserProfileEntity(
             eqHasPullUpBar = model.eqHasPullUpBar,
             eqHasResistanceBand = model.eqHasResistanceBand,
             bellyFatRecompMode = model.bellyFatRecompMode,
-            bellyWorkoutVariant = model.bellyWorkoutVariant
+            bellyWorkoutVariant = model.bellyWorkoutVariant,
+            goalMode = model.goalMode
         )
     }
 }

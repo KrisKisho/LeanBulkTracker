@@ -11,10 +11,77 @@ object AdaptiveMealResizer {
             return meals
         }
 
+        val isCutting = profile.resolvedGoalMode == "WEIGHT_LOSS"
         val offset = profile.adaptiveCalorieOffset
         val isSplitShake = profile.splitShakeModeActive
 
         val adapted = meals.map { meal ->
+            if (isCutting && !meal.isCustom) {
+                when (meal.id) {
+                    "meal_breakfast" -> meal.copy(
+                        defaultCalories = 360,
+                        vegCalories = 360,
+                        defaultProtein = 25,
+                        vegProtein = 25,
+                        defaultCarbs = 44,
+                        vegCarbs = 42,
+                        defaultFat = 10,
+                        vegFat = 11,
+                        defaultTitle = "3 Steamed Idlis + Sambar + 2 Boiled Eggs + 2 Egg Whites",
+                        vegTitle = "2 Pesarattu + Sambar + 75g Low-Oil Podi Paneer"
+                    )
+                    "meal_shake" -> meal.copy(
+                        mealName = "Lean Protein & Majjiga",
+                        defaultCalories = 175,
+                        vegCalories = 175,
+                        defaultProtein = 27,
+                        vegProtein = 27,
+                        defaultCarbs = 6,
+                        vegCarbs = 6,
+                        defaultFat = 4,
+                        vegFat = 4,
+                        defaultTitle = "1 Scoop Whey in water + 1 glass Spiced Buttermilk Majjiga"
+                    )
+                    "meal_lunch" -> meal.copy(
+                        mealName = "Lunch (Cut Volume)",
+                        defaultCalories = 450,
+                        vegCalories = 450,
+                        defaultProtein = 39,
+                        vegProtein = 39,
+                        defaultCarbs = 46,
+                        vegCarbs = 48,
+                        defaultFat = 12,
+                        vegFat = 11,
+                        defaultTitle = "1.0 cup Rice + 150g Chicken Breast Curry + 2 katoris Poriyal + Rasam",
+                        vegTitle = "1.0 cup Rice + 50g Soya Chunks Fry + 2 katoris Poriyal + Rasam"
+                    )
+                    "meal_snack" -> meal.copy(
+                        defaultCalories = 210,
+                        vegCalories = 210,
+                        defaultProtein = 12,
+                        vegProtein = 12,
+                        defaultCarbs = 28,
+                        vegCarbs = 28,
+                        defaultFat = 5,
+                        vegFat = 5,
+                        defaultTitle = "0.75 cup Kala Chana / Moong Sprouts Sundal + Cucumber + Black Coffee"
+                    )
+                    "meal_dinner" -> meal.copy(
+                        mealName = "Light Recovery Dinner",
+                        defaultCalories = 435,
+                        vegCalories = 435,
+                        defaultProtein = 29,
+                        vegProtein = 29,
+                        defaultCarbs = 48,
+                        vegCarbs = 50,
+                        defaultFat = 14,
+                        vegFat = 13,
+                        defaultTitle = "2 Whole-Wheat Phulkas + 2-Egg Curry + 1 cup Low-Fat Curd",
+                        vegTitle = "2 Whole-Wheat Phulkas + 100g Paneer Bhurji (or Pappu) + 1 cup Low-Fat Curd"
+                    )
+                    else -> meal
+                }
+            } else
             when (meal.id) {
                 "meal_breakfast" -> {
                     if (offset >= 150) {

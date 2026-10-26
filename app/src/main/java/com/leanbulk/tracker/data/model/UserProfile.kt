@@ -56,8 +56,18 @@ data class UserProfile(
     val eqHasResistanceBand: Boolean = false,
     // Belly Fat & Waist Recomposition Mode
     val bellyFatRecompMode: Boolean = true,
-    val bellyWorkoutVariant: String = "AUTO"
+    val bellyWorkoutVariant: String = "AUTO",
+    val goalMode: String = "AUTO"
 ) {
+    val resolvedGoalMode: String
+        get() {
+            if (goalMode != "AUTO") return goalMode
+            return when {
+                goalWeightKg < currentWeightKg - 0.5f -> "WEIGHT_LOSS"
+                goalWeightKg > currentWeightKg + 0.5f -> "LEAN_BULK"
+                else -> "BODY_RECOMP"
+            }
+        }
     val startingWeightKg: Float get() = startWeightKg
     val targetWeightKg: Float get() = goalWeightKg
 

@@ -23,7 +23,9 @@ data class DynamicNutritionTarget(
     val adaptiveCalorieOffset: Int = 0,
     val isWaistGuardrailActive: Boolean = false,
     val isWaistRecompActive: Boolean = false,
-    val recompBadgeText: String? = null
+    val recompBadgeText: String? = null,
+    val goalMode: String = "LEAN_BULK",
+    val minSafeCalories: Int = bmr
 )
 
 data class SouthIndianTopUp(
@@ -85,57 +87,105 @@ object DynamicNutritionEngine {
         }
 
         val totalTodayTDEE = baseSedentaryBurn + stepBurn + workoutBurn
-
-        // Step 5: Dynamic Surplus Target ((WeeklyGain * 7700) / 7) or Waist Recomp (+220 kcal) + Adaptive Offset
-        // NOTE: The 95 kcal core finisher burn from digpucxFbMo is deliberately NOT added to dynamicCalorieTarget
-        // (serves as an uncompensated metabolic buffer to accelerate waist trim).
-        val isWaistRecompActive = profile.bellyFatRecompMode
-        val dailySurplus = if (isWaistRecompActive) 220 else ((profile.targetWeeklyGainKg * 7700f) / 7f).roundToInt()
-        val adaptiveOffset = if (profile.autoAdaptEnabled) profile.adaptiveCalorieOffset else 0
-        val dynamicCalorieTarget = totalTodayTDEE + dailySurplus + adaptiveOffset
-
-        // Step 6: Dynamic Macros (2.15g/kg protein if Waist Recomp or Guardrail is active)
+        val resolvedMode = profile.resolvedGoalMode
+        val isWaistRecompActive = profile.bellyFatRecompMode || resolvedMode == "BODY_RECOMP"
         val isWaistGuardrailActive = profile.autoAdaptEnabled && (profile.adaptiveCalorieOffset < 0 || profile.whtr > 0.48f)
-        val proteinMultiplier = if (isWaistGuardrailActive || isWaistRecompActive) 2.15f else 2.0f
-        val proteinTarget = (weight * proteinMultiplier).roundToInt()
-        val fatTarget = (weight * 1.05f).roundToInt()
-        val carbTarget = ((dynamicCalorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).coerceAtLeast(100)
+        val adaptiveOffset = if (profile.autoAdaptEnabled) profile.adaptiveCalorieOffset else 0
+        val minSafeCalories = maxOf(bmr, 1200)
 
-        // Step 7: South Indian Top-Up recommendations
-        // Triggers cleanly at ~9,500–10,000 steps on training days whenever dynamicCalorieTarget - (2420 + adaptiveOffset) >= 150
-        val baseTarget = 2420 + adaptiveOffset
-        val excess = dynamicCalorieTarget - baseTarget
-        val topUp = when {
-            excess in 150..249 -> SouthIndianTopUp(
-                title = "Banana & Peanut Butter Top-Up",
-                description = "1 Ripe Banana + 1 tbsp Peanut Butter (+195 kcal | 4g P)",
-                calories = 195,
-                protein = 4,
-                carbs = 27,
-                fat = 8
-            )
-            excess in 250..399 -> SouthIndianTopUp(
-                title = "Rice, Ghee & Egg Top-Up",
-                description = "0.75 cup Extra Steamed Rice + 1 tsp Ghee + 1 Boiled Egg (+285 kcal | 9g P)",
-                calories = 285,
-                protein = 9,
-                carbs = 42,
-                fat = 9
-            )
-            excess >= 400 -> SouthIndianTopUp(
-                title = "Whole Milk & Roasted Chana Top-Up",
-                description = "1 Glass Whole Milk (250ml) + 30g Roasted Chana/Peanuts (+320 kcal | 15g P)",
-                calories = 320,
-                protein = 15,
-                carbs = 22,
-                fat = 18
-            )
-            else -> null
+        val dailySurplusOrDeficit: Int
+        val dynamicCalorieTarget: Int
+        val proteinTarget: Int
+        val fatTarget: Int
+        val carbTarget: Int
+        val recompBadge: String?
+        val topUp: SouthIndianTopUp?
+        var excessKcal = 0
+
+        when (resolvedMode) {
+            "WEIGHT_LOSS" -> {
+                // Mode B: WEIGHT_LOSS (Fat-Loss Logic with Clinical Safety Floors)
+                val requestedDeficit = ((profile.targetWeeklyGainKg.coerceAtLeast(0.25f) * 7700f) / 7f).coerceIn(300f, 750f)
+                val rawTarget = (totalTodayTDEE - requestedDeficit + adaptiveOffset).roundToInt()
+                dynamicCalorieTarget = maxOf(rawTarget, minSafeCalories)
+                dailySurplusOrDeficit = dynamicCalorieTarget - totalTodayTDEE
+
+                // Muscle-Sparing Cut Macros: 2.15g/kg protein, min 45g fat
+                proteinTarget = (weight * 2.15f).roundToInt()
+                fatTarget = (weight * 0.85f).coerceAtLeast(45f).roundToInt()
+                carbTarget = ((dynamicCalorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).coerceAtLeast(100)
+
+                val actualDeficit = totalTodayTDEE - dynamicCalorieTarget
+                recompBadge = "🔥 Fat-Loss Active: -${actualDeficit} kcal Deficit mobilizing body fat • Muscle-Sparing Protein (${proteinTarget}g) active"
+
+                // Over-Deficit Muscle Protection Guardrail:
+                // Only if high steps push total daily deficit beyond 750 kcal or near BMR
+                topUp = if (actualDeficit > 750 || dynamicCalorieTarget <= minSafeCalories + 100) {
+                    SouthIndianTopUp(
+                        title = "Lean Muscle-Sparing Refuel",
+                        description = "+3 Boiled Egg Whites + 1 Glass Spiced Buttermilk Majjiga (+95 kcal | 14g P)",
+                        calories = 95,
+                        protein = 14,
+                        carbs = 3,
+                        fat = 1
+                    )
+                } else null
+            }
+            "BODY_RECOMP" -> {
+                // Mode C: BODY_RECOMP
+                dailySurplusOrDeficit = -100
+                dynamicCalorieTarget = totalTodayTDEE - 100 + adaptiveOffset
+                proteinTarget = (weight * 2.2f).roundToInt()
+                fatTarget = (weight * 0.95f).coerceAtLeast(45f).roundToInt()
+                carbTarget = ((dynamicCalorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).coerceAtLeast(100)
+                recompBadge = "⚖️ Body Recomp Active: -100 kcal buffer • 2.2g/kg Protein for muscle build"
+                topUp = null
+            }
+            else -> { // Mode A: LEAN_BULK
+                dailySurplusOrDeficit = if (isWaistRecompActive) 220 else ((profile.targetWeeklyGainKg * 7700f) / 7f).roundToInt()
+                dynamicCalorieTarget = totalTodayTDEE + dailySurplusOrDeficit + adaptiveOffset
+
+                val proteinMultiplier = if (isWaistGuardrailActive || isWaistRecompActive) 2.15f else 2.0f
+                proteinTarget = (weight * proteinMultiplier).roundToInt()
+                fatTarget = (weight * 1.05f).roundToInt()
+                carbTarget = ((dynamicCalorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).coerceAtLeast(100)
+
+                val baseTarget = 2420 + adaptiveOffset
+                val excess = dynamicCalorieTarget - baseTarget
+                excessKcal = excess
+                topUp = when {
+                    excess in 150..249 -> SouthIndianTopUp(
+                        title = "Banana & Peanut Butter Top-Up",
+                        description = "1 Ripe Banana + 1 tbsp Peanut Butter (+195 kcal | 4g P)",
+                        calories = 195,
+                        protein = 4,
+                        carbs = 27,
+                        fat = 8
+                    )
+                    excess in 250..399 -> SouthIndianTopUp(
+                        title = "Rice, Ghee & Egg Top-Up",
+                        description = "0.75 cup Extra Steamed Rice + 1 tsp Ghee + 1 Boiled Egg (+285 kcal | 9g P)",
+                        calories = 285,
+                        protein = 9,
+                        carbs = 42,
+                        fat = 9
+                    )
+                    excess >= 400 -> SouthIndianTopUp(
+                        title = "Whole Milk & Roasted Chana Top-Up",
+                        description = "1 Glass Whole Milk (250ml) + 30g Roasted Chana/Peanuts (+320 kcal | 15g P)",
+                        calories = 320,
+                        protein = 15,
+                        carbs = 22,
+                        fat = 18
+                    )
+                    else -> null
+                }
+
+                recompBadge = if (isWaistRecompActive) {
+                    "Waist Recomp Active: +220 kcal Lean Surplus • 95 kcal Core Finisher Burn (Not Eaten Back)"
+                } else null
+            }
         }
-
-        val recompBadge = if (isWaistRecompActive) {
-            "Waist Recomp Active: +220 kcal Lean Surplus • 95 kcal Core Finisher Burn (Not Eaten Back)"
-        } else null
 
         return DynamicNutritionTarget(
             bmr = bmr,
@@ -145,17 +195,19 @@ object DynamicNutritionEngine {
             completedWorkoutBurn = completedWorkoutBurn,
             isWorkoutAnticipated = isWorkoutAnticipated,
             totalTodayTDEE = totalTodayTDEE,
-            dailySurplus = dailySurplus,
+            dailySurplus = dailySurplusOrDeficit,
             dynamicCalorieTarget = dynamicCalorieTarget,
             proteinTargetGrams = proteinTarget,
             fatTargetGrams = fatTarget,
             carbTargetGrams = carbTarget,
-            excessBurnKcal = excess,
+            excessBurnKcal = excessKcal,
             topUpRecommendation = topUp,
             adaptiveCalorieOffset = adaptiveOffset,
             isWaistGuardrailActive = isWaistGuardrailActive,
             isWaistRecompActive = isWaistRecompActive,
-            recompBadgeText = recompBadge
+            recompBadgeText = recompBadge,
+            goalMode = resolvedMode,
+            minSafeCalories = minSafeCalories
         )
     }
 }

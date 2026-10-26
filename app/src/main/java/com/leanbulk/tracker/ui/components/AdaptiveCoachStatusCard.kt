@@ -190,16 +190,34 @@ fun AdaptiveCoachStatusCard(
 
             // 4 Real-time Adaptive Metrics Grid
             Row(modifier = Modifier.fillMaxWidth()) {
+                val isCutting = status.goalMode == "WEIGHT_LOSS"
+                val paceSubtext = if (isCutting) {
+                    "Target: -${String.format("%.2f", status.targetWeeklyGainKg)} kg/wk"
+                } else if (status.goalMode == "BODY_RECOMP") {
+                    "Target: ±0.00 kg/wk (Recomp)"
+                } else {
+                    "Target: +${String.format("%.2f", status.targetWeeklyGainKg)} kg/wk"
+                }
+                val paceAccent = if (isCutting) {
+                    when {
+                        status.ewmaGainRateKgPerWeek < -1.0f -> CoralRed
+                        status.ewmaGainRateKgPerWeek > -0.15f -> AmberGold
+                        else -> NeonLime
+                    }
+                } else {
+                    when {
+                        status.ewmaGainRateKgPerWeek < (status.targetWeeklyGainKg * 0.55f) -> AmberGold
+                        status.ewmaGainRateKgPerWeek > 0.50f -> CoralRed
+                        else -> NeonLime
+                    }
+                }
+
                 // Metric 1: True EWMA Pace
                 AdaptiveMetricTile(
                     label = "EWMA Pace",
                     value = String.format("%+.2f kg/wk", status.ewmaGainRateKgPerWeek),
-                    subtext = "Target: +${String.format("%.2f", status.targetWeeklyGainKg)} kg/wk",
-                    accentColor = when {
-                        status.ewmaGainRateKgPerWeek < (status.targetWeeklyGainKg * 0.55f) -> AmberGold
-                        status.ewmaGainRateKgPerWeek > 0.50f -> CoralRed
-                        else -> NeonLime
-                    },
+                    subtext = paceSubtext,
+                    accentColor = paceAccent,
                     icon = Icons.Default.TrendingUp,
                     modifier = Modifier.weight(1f)
                 )
@@ -210,7 +228,9 @@ fun AdaptiveCoachStatusCard(
                 AdaptiveMetricTile(
                     label = "Calorie Target",
                     value = "${status.effectiveBaseCalories} kcal",
-                    subtext = if (status.adaptiveCalorieOffset != 0) {
+                    subtext = if (isCutting) {
+                        "Fat-Loss Calorie Target"
+                    } else if (status.adaptiveCalorieOffset != 0) {
                         "Base 2,420 ${if (status.adaptiveCalorieOffset > 0) "+" else ""}${status.adaptiveCalorieOffset} kcal"
                     } else {
                         "Base 2,420 kcal (Nominal)"
