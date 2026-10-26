@@ -274,6 +274,53 @@ fun MealsScreen(
             )
         }
 
+        if (state.nutritionTarget.isWaistRecompActive) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CoralRed.copy(alpha = 0.12f))
+                        .border(1.dp, CoralRed.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(CoralRed.copy(alpha = 0.25f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "🔥", fontSize = 14.sp)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "WAIST RECOMP ACTIVE",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = CoralRed,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.6.sp
+                                )
+                            )
+                            Text(
+                                text = state.nutritionTarget.recompBadgeText ?: "+220 kcal Lean Surplus • 95 kcal Core Finisher Burn (Not Eaten Back)",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = TextPrimary,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             // Autonomous Closed-Loop Coaching Status & History Card
             AdaptiveCoachStatusCard(

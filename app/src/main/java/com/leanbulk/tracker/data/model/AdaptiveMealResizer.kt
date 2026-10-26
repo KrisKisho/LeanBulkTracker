@@ -7,7 +7,7 @@ object AdaptiveMealResizer {
      * according to the user's active [UserProfile] adaptive settings.
      */
     fun adaptMeals(meals: List<MealItem>, profile: UserProfile): List<MealItem> {
-        if (!profile.autoAdaptEnabled || meals.isEmpty()) {
+        if ((!profile.autoAdaptEnabled && !profile.bellyFatRecompMode) || meals.isEmpty()) {
             return meals
         }
 
@@ -86,6 +86,14 @@ object AdaptiveMealResizer {
                             defaultCarbs = (meal.defaultCarbs - 35).coerceAtLeast(30),
                             defaultTitle = "${stripAdaptationTag(meal.defaultTitle)} • [Waist Guardrail: Rice dropped to 0.75 cup]",
                             vegTitle = "${stripAdaptationTag(meal.vegTitle)} • [Waist Guardrail: Rice dropped to 0.75 cup]"
+                        )
+                    } else if (profile.bellyFatRecompMode) {
+                        meal.copy(
+                            defaultCalories = (meal.defaultCalories - 110).coerceAtLeast(350),
+                            vegCalories = (meal.vegCalories - 110).coerceAtLeast(350),
+                            defaultCarbs = (meal.defaultCarbs - 26).coerceAtLeast(30),
+                            defaultTitle = "${stripAdaptationTag(meal.defaultTitle)} • [Waist Recomp: Rice reduced to 1.0 cup (-110 kcal)]",
+                            vegTitle = "${stripAdaptationTag(meal.vegTitle)} • [Waist Recomp: Rice reduced to 1.0 cup (-110 kcal)]"
                         )
                     } else {
                         meal

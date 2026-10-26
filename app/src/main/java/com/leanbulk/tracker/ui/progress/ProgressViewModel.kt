@@ -171,6 +171,18 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun toggleBellyFatRecompMode(enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                val updated = uiState.value.userProfile.copy(bellyFatRecompMode = enabled)
+                profileRepository.updateProfile(updated)
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = false)
+            } catch (e: Exception) {
+                Log.e("ProgressViewModel", "Error toggling recomp mode", e)
+            }
+        }
+    }
+
     fun runAdaptationCheckNow() {
         viewModelScope.launch {
             _isEvaluatingAdaptation.value = true

@@ -21,7 +21,9 @@ data class DynamicNutritionTarget(
     val excessBurnKcal: Int,
     val topUpRecommendation: SouthIndianTopUp?,
     val adaptiveCalorieOffset: Int = 0,
-    val isWaistGuardrailActive: Boolean = false
+    val isWaistGuardrailActive: Boolean = false,
+    val isWaistRecompActive: Boolean = false,
+    val recompBadgeText: String? = null
 )
 
 data class SouthIndianTopUp(
@@ -84,14 +86,17 @@ object DynamicNutritionEngine {
 
         val totalTodayTDEE = baseSedentaryBurn + stepBurn + workoutBurn
 
-        // Step 5: Dynamic Surplus Target ((WeeklyGain * 7700) / 7) + Adaptive Offset
-        val dailySurplus = ((profile.targetWeeklyGainKg * 7700f) / 7f).roundToInt()
+        // Step 5: Dynamic Surplus Target ((WeeklyGain * 7700) / 7) or Waist Recomp (+220 kcal) + Adaptive Offset
+        // NOTE: The 95 kcal core finisher burn from digpucxFbMo is deliberately NOT added to dynamicCalorieTarget
+        // (serves as an uncompensated metabolic buffer to accelerate waist trim).
+        val isWaistRecompActive = profile.bellyFatRecompMode
+        val dailySurplus = if (isWaistRecompActive) 220 else ((profile.targetWeeklyGainKg * 7700f) / 7f).roundToInt()
         val adaptiveOffset = if (profile.autoAdaptEnabled) profile.adaptiveCalorieOffset else 0
         val dynamicCalorieTarget = totalTodayTDEE + dailySurplus + adaptiveOffset
 
-        // Step 6: Dynamic Macros (2.15g/kg protein if Waist Guardrail / WHtR alert is active)
+        // Step 6: Dynamic Macros (2.15g/kg protein if Waist Recomp or Guardrail is active)
         val isWaistGuardrailActive = profile.autoAdaptEnabled && (profile.adaptiveCalorieOffset < 0 || profile.whtr > 0.48f)
-        val proteinMultiplier = if (isWaistGuardrailActive) 2.15f else 2.0f
+        val proteinMultiplier = if (isWaistGuardrailActive || isWaistRecompActive) 2.15f else 2.0f
         val proteinTarget = (weight * proteinMultiplier).roundToInt()
         val fatTarget = (weight * 1.05f).roundToInt()
         val carbTarget = ((dynamicCalorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).coerceAtLeast(100)
@@ -128,6 +133,10 @@ object DynamicNutritionEngine {
             else -> null
         }
 
+        val recompBadge = if (isWaistRecompActive) {
+            "Waist Recomp Active: +220 kcal Lean Surplus • 95 kcal Core Finisher Burn (Not Eaten Back)"
+        } else null
+
         return DynamicNutritionTarget(
             bmr = bmr,
             baseSedentaryBurn = baseSedentaryBurn,
@@ -144,7 +153,9 @@ object DynamicNutritionEngine {
             excessBurnKcal = excess,
             topUpRecommendation = topUp,
             adaptiveCalorieOffset = adaptiveOffset,
-            isWaistGuardrailActive = isWaistGuardrailActive
+            isWaistGuardrailActive = isWaistGuardrailActive,
+            isWaistRecompActive = isWaistRecompActive,
+            recompBadgeText = recompBadge
         )
     }
 }

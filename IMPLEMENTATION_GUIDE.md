@@ -1,7 +1,7 @@
 # Lean Bulk Tracker — Complete Technical Implementation Guide
 
 > **Target Profile:** 60.0 kg $\rightarrow$ 70.0 kg Lean Hypertrophy  
-> **Framework:** Android Jetpack Compose (Material 3), Room Database v9, Media3 ExoPlayer, Health Connect & Hardware Step Sensors  
+> **Framework:** Android Jetpack Compose (Material 3), Room Database v10, Media3 ExoPlayer, Health Connect & Hardware Step Sensors  
 > **Architecture:** Offline-First Clean MVVM + Repository Pattern with Kotlin Coroutines & StateFlow
 
 ---
@@ -44,10 +44,10 @@ The **Lean Bulk Tracker** (`com.leanbulk.tracker`) is an offline-first, closed-l
 
 ## 2. Database Schema & Room Persistence Architecture
 
-The app uses **Room Database Version 9** with structured sequential migrations (`MIGRATION_3_4` through `MIGRATION_8_9`) and destructive fallback safety.
+The app uses **Room Database Version 10** with structured sequential migrations (`MIGRATION_3_4` through `MIGRATION_9_10`) and destructive fallback safety.
 
 ```
-AppDatabase (v9)
+AppDatabase (v10)
 ├── user_profile            # Biometrics, adaptive coach offsets, chronotype, equipment
 ├── weight_progress         # Date-stamped weigh-ins with waist measurements & notes
 ├── daily_meal_logs         # Daily meal checklist logs, portion multipliers, custom macros
@@ -304,6 +304,33 @@ Exports all app data into a portable `.json` file:
 
 ---
 
+
+### 6. Waist Recomposition & Core Tightening Finisher Module (`BellyFatCircuitCatalog.kt`)
+
+The waist recomposition system enables aggressive core tightening without stalling lean-bulk muscle hypertrophy:
+
+1. **Dual Circuit Architecture (`digpucxFbMo`):**
+   - **Option A (Full 8 Moves, ~9.5 mins active | ~95 kcal burn):** Jumping Jacks (45s), Mountain Climbers (45s), Isometric Elbow Plank (45s), Seated Flutter Kicks (45s), High Knees (45s), Russian Twists (45s), Seated Leg Tuck-Ins (45s), Bicycle Crunches (45s).
+   - **Option B (Pure Abs Only, ~6 mins | Leg-Day Safe):** Skips jumping jacks and high knees to protect knee joints and lower-body recovery on Tuesday & Thursday leg sessions.
+   - **Smart Auto Variant:** Automatically toggles between Full 8 Moves (Mon, Wed, Fri, Sat, Sun) and Pure Abs Only (Tue, Thu).
+
+2. **Mid-Video Ad/Promo Seamless Skip:**
+   - The circuit automatically jumps from Segment 7 (ends at 564s) directly into Segment 8 (starts at 602s), cleanly bypassing the 37-second sponsor promo between 565s and 601s without player latency.
+
+3. **Stomach Vacuum Coaching Cues:**
+   - Highlights transverse abdominis activation on Isometric Elbow Plank (`bf_seg_3`) and Seated Leg Tuck-Ins (`bf_seg_7`):
+     > *"Stomach Vacuum Cue: Exhale completely and pull your navel in toward your spine during the entire 45 seconds to tighten your inner abdominal wall."*
+
+4. **Recomposition Nutrition Rules:**
+   - **Surplus Tightening:** Daily surplus shifts from standard $+330\text{ kcal}$ to $+220\text{ kcal}$ ($-110\text{ kcal}$ from dinner carbs: 1.5 cups Rice $\rightarrow$ 1.0 cup Rice).
+   - **Higher Protein Floor:** Scales daily protein from $2.0\text{ g/kg}$ to $2.15\text{ g/kg}$ (~130–140g/day) to preserve lean mass during core oxidation.
+   - **Uncompensated Energy Buffer:** The ~95 kcal burned during the finisher is *not* added back to the dynamic calorie target, establishing an uncompensated fat-oxidation buffer.
+
+5. **Autonomous Closed-Loop Trigger:**
+   - `AdaptiveCoachEngine.kt` auto-activates `bellyFatRecompMode = true` whenever the 14-day navel waist measurement increases by $\ge 0.25''$ or $\text{WHtR} > 0.46$.
+
+---
+
 ## 7. Developer Build & Deployment Guide
 
 ### Prerequisites
@@ -343,5 +370,8 @@ Output path: `app/build/outputs/apk/debug/app-debug.apk`
 | **Equipment Load Math** | `EquipmentLoadTranslator.kt` | Water bottle backpack math ($1\text{L} = 1.0\text{ kg}$) and 1-tap Barbell swap | Verified on Device |
 | **Plate Builder Sheet** | `MealPlateBuilderSheet.kt` | 77 South Indian foods, portion steppers, macro-gap auto-balancer | Verified on Device |
 | **Media3 ExoPlayer** | `YouTubePlayerContainer.kt` | Offline video playback with fallback to YouTube, Fullscreen dialog | Verified on Device |
-| **Database Migration** | `AppDatabase.kt` | `MIGRATION_8_9` SQLite execution without data loss | Verified on Device |
-| **JSON Backup/Restore**| `DataBackupManager.kt` | Export & restore of all 11 tables including supplements & equipment | Verified on Device |
+| **Database Migration** | `AppDatabase.kt` | `MIGRATION_9_10` SQLite execution without data loss | Verified on Device |
+| **JSON Backup/Restore**| `DataBackupManager.kt` | Export & restore of all 11 tables including supplements, equipment & recomp mode | Verified on Device |
+| **Waist Recomp Finisher**| `BellyFatCircuitCatalog.kt` | Video ID `digpucxFbMo`, promo skip (564s->602s), stomach vacuum cue banner | Verified on Device |
+| **Recomp Macros** | `DynamicNutritionEngine.kt` | Surplus shift to +220 kcal, 2.15g/kg protein, dinner rice reduction (-110 kcal) | Verified on Device |
+| **Database Migration v10**| `AppDatabase.kt` | `MIGRATION_9_10` adding `bellyFatRecompMode` and `bellyWorkoutVariant` | Verified on Device |

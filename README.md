@@ -1,6 +1,6 @@
 # Lean Bulk Tracker (60 to 70 kg)
 
-An offline-first Android hypertrophy and nutrition tracking application built with **Kotlin**, **Jetpack Compose (Material 3)**, **Room Database v9**, **Media3 ExoPlayer**, **Android Health Connect**, and Qualcomm **Hardware Step Sensors**.
+An offline-first Android hypertrophy and nutrition tracking application built with **Kotlin**, **Jetpack Compose (Material 3)**, **Room Database v10**, **Media3 ExoPlayer**, **Android Health Connect**, and Qualcomm **Hardware Step Sensors**.
 
 Designed specifically for lean-bulk progression ($60.0\text{ kg} \rightarrow 70.0\text{ kg}$) utilizing progressive overload with minimal equipment (single 4 kg dumbbell, weighted backpack, adjustable dumbbells, or barbell) paired with a high-protein South Indian nutritional framework and closed-loop autonomous coaching.
 
@@ -52,7 +52,14 @@ Designed specifically for lean-bulk progression ($60.0\text{ kg} \rightarrow 70.
 - **In-App Video Picker Dialog:** One-tap transfer of workout video files into local app storage.
 - **Fullscreen Overlay Controls:** Top bar with segment title and continuous play toggle; bottom bar with $-5\text{s}$ rewind, Play/Pause, and Restart buttons.
 
-### 8. Full Offline Data Export & Migration (`DataBackupManager.kt`)
+
+### 8. Waist Recomposition & Core Tightener Finisher (`BellyFatCircuitCatalog.kt`)
+- **8-Move Metabolic & Core Circuit (`digpucxFbMo`):** High-intensity circuit (~9.5 mins active, ~95 kcal burn) targeting core endurance and visceral adiposity.
+- **Smart Leg-Day Variant Switcher:** Automatically runs Pure Abs Mode (~6 mins, 6 moves) on Tuesday & Thursday to skip high-impact jumps on lower-body days.
+- **Promo Skip & Stomach Vacuum Cues:** Seamlessly bypasses the 37s mid-video sponsor ad (565s–601s) and highlights transverse abdominis vacuum cues on Plank (`bf_seg_3`) and Leg Tuck-Ins (`bf_seg_7`).
+- **Autonomous Activation:** Activates whenever 14-day navel waist expands $\ge 0.25''$ or $	ext{WHtR} > 0.46$. Tightens surplus to $+220	ext{ kcal}$ and elevates protein to $2.15	ext{ g/kg}$.
+
+### 9. Full Offline Data Export & Migration (`DataBackupManager.kt`)
 - **Zero Cloud Dependence:** Export all 11 Room tables into a single portable `.json` file.
 - **System Share Sheet & SAF:** Direct local file save or share via Google Drive, WhatsApp, Gmail, or Bluetooth.
 - **Atomic Restore:** 1-tap transactional import with Room `@Upsert` and AlarmManager notification re-scheduling.
@@ -64,7 +71,7 @@ Designed specifically for lean-bulk progression ($60.0\text{ kg} \rightarrow 70.
 - **Language:** Kotlin 2.1.0
 - **UI Toolkit:** Jetpack Compose (Material 3) with Dark Neon Cyan & Gold theme
 - **Architecture:** Clean MVVM + Repository Pattern + Kotlin StateFlow / Coroutines
-- **Local Persistence:** Room Database v9 (11 entities with sequential migrations)
+- **Local Persistence:** Room Database v10 (11 entities with sequential migrations)
 - **Audio Synthesis:** `android.media.ToneGenerator`
 - **Video Playback:** AndroidX Media3 ExoPlayer 1.5.0 + `android-youtube-player:core:13.0.0`
 - **Health & Fitness:** `androidx.health.connect:connect-client:1.1.0-alpha11` + Qualcomm Hardware Step Sensors
@@ -79,7 +86,7 @@ app/src/main/java/com/leanbulk/tracker/
 ├── data/
 │   ├── backup/       # Full JSON export/import & Storage Access Framework
 │   ├── health/       # Hardware step sensors & Health Connect client
-│   ├── local/        # Room Database v9, DAOs, and 11 Entities
+│   ├── local/        # Room Database v10, DAOs, and 11 Entities
 │   ├── model/        # AdaptiveCoachEngine, OverloadEngine, EquipmentLoadTranslator, FoodCatalog
 │   ├── notification/ # AlarmManager receivers & BootReceiver
 │   ├── repository/   # Repositories for meals, workouts, profile, habits, and weights

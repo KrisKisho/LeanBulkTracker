@@ -99,6 +99,8 @@ class DataBackupManager(private val database: AppDatabase) {
                 put("eqHasBarbell", profile.eqHasBarbell)
                 put("eqHasPullUpBar", profile.eqHasPullUpBar)
                 put("eqHasResistanceBand", profile.eqHasResistanceBand)
+                put("bellyFatRecompMode", profile.bellyFatRecompMode)
+                put("bellyWorkoutVariant", profile.bellyWorkoutVariant)
             }
             root.put("userProfile", pObj)
         }
@@ -371,7 +373,9 @@ class DataBackupManager(private val database: AppDatabase) {
                     eqHasAdjustableDumbbell = pObj.optBoolean("eqHasAdjustableDumbbell", false),
                     eqHasBarbell = pObj.optBoolean("eqHasBarbell", false),
                     eqHasPullUpBar = pObj.optBoolean("eqHasPullUpBar", false),
-                    eqHasResistanceBand = pObj.optBoolean("eqHasResistanceBand", false)
+                    eqHasResistanceBand = pObj.optBoolean("eqHasResistanceBand", false),
+                    bellyFatRecompMode = pObj.optBoolean("bellyFatRecompMode", true),
+                    bellyWorkoutVariant = pObj.optString("bellyWorkoutVariant", "AUTO")
                 )
                 database.userProfileDao().upsertUserProfile(entity)
                 profileImported = true

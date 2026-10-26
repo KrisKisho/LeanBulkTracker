@@ -21,7 +21,8 @@ object LocalVideoManager {
     val TARGET_VIDEOS = listOf(
         WorkoutDataSource.VIDEO_CHEST to ("Chest Hypertrophy (30m)" to "chest.mp4"),
         WorkoutDataSource.VIDEO_ARMS to ("Arms Killer (20m)" to "arms.mp4"),
-        WorkoutDataSource.VIDEO_FULL_BODY to ("Intense Full Body (30m)" to "full_body.mp4")
+        WorkoutDataSource.VIDEO_FULL_BODY to ("Intense Full Body (30m)" to "full_body.mp4"),
+        WorkoutDataSource.VIDEO_BELLY_FAT to ("Belly Fat & Core Tightener (11m)" to "belly_fat.mp4")
     )
 
     /**
@@ -35,6 +36,7 @@ object LocalVideoManager {
             WorkoutDataSource.VIDEO_CHEST -> listOf("chest", "l5yuivJYj5k")
             WorkoutDataSource.VIDEO_ARMS -> listOf("arm", "mcuFTrNDLkg")
             WorkoutDataSource.VIDEO_FULL_BODY -> listOf("full_body", "fullbody", "full body", "udbU6ykFFGE")
+            WorkoutDataSource.VIDEO_BELLY_FAT -> listOf("belly_fat", "bellyfat", "belly fat", "core", "digpucxFbMo")
             else -> listOf(videoId.lowercase())
         }
 

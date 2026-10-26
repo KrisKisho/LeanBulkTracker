@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.leanbulk.tracker.data.local.AppDatabase
 import com.leanbulk.tracker.data.model.AdaptiveCoachEngine
+import com.leanbulk.tracker.data.model.BellyFatCircuitCatalog
 import com.leanbulk.tracker.data.model.DayWorkoutPlan
 import com.leanbulk.tracker.data.model.MesocyclePhase
 import com.leanbulk.tracker.data.model.WorkoutDataSource
@@ -38,7 +39,10 @@ data class WorkoutUiState(
     val shiftedFromDay: DayOfWeek? = null,
     val isDeloadRecommended: Boolean = false,
     val inventory: HomeGymInventory = HomeGymInventory(),
-    val showInventoryDialog: Boolean = false
+    val showInventoryDialog: Boolean = false,
+    val bellyFatRecompMode: Boolean = true,
+    val bellyWorkoutVariant: String = "AUTO",
+    val finisherSegments: List<WorkoutSegment> = emptyList()
 ) {
     val activeMesocyclePhase: MesocyclePhase
         get() = MesocyclePhase.fromWeek(activeCycleWeek)
@@ -152,28 +156,36 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             isDeloadRecommended = adaptive.isDeloadRecommended
         )
     }.flatMapLatest { meta ->
-        val inventoryFlow = db.userProfileDao().getUserProfileFlow().map { entity ->
-            if (entity != null) {
+        combine(
+            repository.getPlanWithStatus(LocalDate.now(), meta.day, meta.cycleWeek),
+            db.workoutDao().getWorkoutLogsForDate(LocalDate.now().toString()),
+            db.userProfileDao().getUserProfileFlow(),
+            _showInventoryDialog
+        ) { planWithStatus, workoutLogs, profileEntity, showDialog ->
+            val inventory = if (profileEntity != null) {
                 HomeGymInventory(
-                    has4kgDumbbell = entity.eqHas4kgDumbbell,
-                    hasWeightedBackpack = entity.eqHasWeightedBackpack,
-                    hasSturdyTableOrBed = entity.eqHasSturdyTableOrBed,
-                    hasAdjustableDumbbell = entity.eqHasAdjustableDumbbell,
-                    hasBarbell = entity.eqHasBarbell,
-                    hasPullUpBar = entity.eqHasPullUpBar,
-                    hasResistanceBand = entity.eqHasResistanceBand
+                    has4kgDumbbell = profileEntity.eqHas4kgDumbbell,
+                    hasWeightedBackpack = profileEntity.eqHasWeightedBackpack,
+                    hasSturdyTableOrBed = profileEntity.eqHasSturdyTableOrBed,
+                    hasAdjustableDumbbell = profileEntity.eqHasAdjustableDumbbell,
+                    hasBarbell = profileEntity.eqHasBarbell,
+                    hasPullUpBar = profileEntity.eqHasPullUpBar,
+                    hasResistanceBand = profileEntity.eqHasResistanceBand
                 )
             } else {
                 HomeGymInventory()
             }
-        }
 
-        combine(
-            repository.getPlanWithStatus(LocalDate.now(), meta.day, meta.cycleWeek),
-            inventoryFlow,
-            _showInventoryDialog
-        ) { planWithStatus, inventory, showDialog ->
-            val activeSeg = planWithStatus.segments.find { it.id == meta.activeSegId }
+            val recompMode = profileEntity?.bellyFatRecompMode ?: true
+            val variant = profileEntity?.bellyWorkoutVariant ?: "AUTO"
+            val logMap = workoutLogs.associateBy { it.segmentId }
+            val rawFinisher = BellyFatCircuitCatalog.getSegments(variant, meta.day)
+            val finisherWithStatus = rawFinisher.map { seg ->
+                seg.copy(isCompleted = logMap[seg.id]?.isCompleted ?: false)
+            }
+
+            val allAvailableSegments = planWithStatus.segments + finisherWithStatus
+            val activeSeg = allAvailableSegments.find { it.id == meta.activeSegId }
                 ?: planWithStatus.segments.firstOrNull { !it.isCompleted }
                 ?: planWithStatus.segments.firstOrNull()
 
@@ -189,7 +201,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 shiftedFromDay = meta.shiftedFromDay,
                 isDeloadRecommended = meta.isDeloadRecommended,
                 inventory = inventory,
-                showInventoryDialog = showDialog
+                showInventoryDialog = showDialog,
+                bellyFatRecompMode = recompMode,
+                bellyWorkoutVariant = variant,
+                finisherSegments = finisherWithStatus
             )
         }
     }.stateIn(
@@ -253,10 +268,19 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
                 // Advance to next uncompleted segment if available
                 val currentPlan = uiState.value.plan
-                val currentIndex = currentPlan.segments.indexOfFirst { it.id == segment.id }
-                if (currentIndex >= 0 && currentIndex < currentPlan.segments.size - 1) {
-                    val nextSegment = currentPlan.segments[currentIndex + 1]
-                    _activeSegmentId.value = nextSegment.id
+                val finisherSegments = uiState.value.finisherSegments
+                if (segment.id.startsWith("bf_seg_")) {
+                    val currentIndex = finisherSegments.indexOfFirst { it.id == segment.id }
+                    if (currentIndex >= 0 && currentIndex < finisherSegments.size - 1) {
+                        val nextFinisher = finisherSegments[currentIndex + 1]
+                        _activeSegmentId.value = nextFinisher.id
+                    }
+                } else {
+                    val currentIndex = currentPlan.segments.indexOfFirst { it.id == segment.id }
+                    if (currentIndex >= 0 && currentIndex < currentPlan.segments.size - 1) {
+                        val nextSegment = currentPlan.segments[currentIndex + 1]
+                        _activeSegmentId.value = nextSegment.id
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("WorkoutViewModel", "Error finishing segment", e)
@@ -354,6 +378,29 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             set3Reps = segment.set3RepsAchieved,
             effortRating = segment.effortRating
         )
+    }
+
+    fun toggleBellyFatRecompMode(enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                val entity = db.userProfileDao().getUserProfileSync() ?: UserProfileEntity()
+                db.userProfileDao().upsertUserProfile(entity.copy(bellyFatRecompMode = enabled))
+                AdaptiveCoachEngine.evaluateAndAdapt(db, getApplication(), force = false)
+            } catch (e: Exception) {
+                Log.e("WorkoutViewModel", "Error toggling recomp mode", e)
+            }
+        }
+    }
+
+    fun setBellyWorkoutVariant(variant: String) {
+        viewModelScope.launch {
+            try {
+                val entity = db.userProfileDao().getUserProfileSync() ?: UserProfileEntity()
+                db.userProfileDao().upsertUserProfile(entity.copy(bellyWorkoutVariant = variant))
+            } catch (e: Exception) {
+                Log.e("WorkoutViewModel", "Error setting belly workout variant", e)
+            }
+        }
     }
 
 }

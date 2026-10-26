@@ -53,7 +53,9 @@ data class UserProfileEntity(
     val eqHasAdjustableDumbbell: Boolean = false,
     val eqHasBarbell: Boolean = false,
     val eqHasPullUpBar: Boolean = false,
-    val eqHasResistanceBand: Boolean = false
+    val eqHasResistanceBand: Boolean = false,
+    val bellyFatRecompMode: Boolean = true,
+    val bellyWorkoutVariant: String = "AUTO"
 ) {
     fun toModel(): UserProfile = UserProfile(
         id = id,
@@ -99,7 +101,9 @@ data class UserProfileEntity(
         eqHasAdjustableDumbbell = eqHasAdjustableDumbbell,
         eqHasBarbell = eqHasBarbell,
         eqHasPullUpBar = eqHasPullUpBar,
-        eqHasResistanceBand = eqHasResistanceBand
+        eqHasResistanceBand = eqHasResistanceBand,
+        bellyFatRecompMode = bellyFatRecompMode,
+        bellyWorkoutVariant = bellyWorkoutVariant
     )
 
     companion object {
@@ -147,7 +151,9 @@ data class UserProfileEntity(
             eqHasAdjustableDumbbell = model.eqHasAdjustableDumbbell,
             eqHasBarbell = model.eqHasBarbell,
             eqHasPullUpBar = model.eqHasPullUpBar,
-            eqHasResistanceBand = model.eqHasResistanceBand
+            eqHasResistanceBand = model.eqHasResistanceBand,
+            bellyFatRecompMode = model.bellyFatRecompMode,
+            bellyWorkoutVariant = model.bellyWorkoutVariant
         )
     }
 }

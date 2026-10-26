@@ -96,40 +96,7 @@ object AdaptiveCoachEngine {
         val profileEntity = database.userProfileDao().getUserProfileSync()
             ?: return@withContext AdaptationResult(evaluated = false)
 
-        val profile = UserProfile(
-            id = profileEntity.id,
-            age = profileEntity.age,
-            sex = profileEntity.sex,
-            heightCm = profileEntity.heightCm,
-            startWeightKg = profileEntity.startWeightKg,
-            currentWeightKg = profileEntity.currentWeightKg,
-            goalWeightKg = profileEntity.goalWeightKg,
-            targetWeeklyGainKg = profileEntity.targetWeeklyGainKg,
-            wristInches = profileEntity.wristInches,
-            ankleInches = profileEntity.ankleInches,
-            currentWaistInches = profileEntity.currentWaistInches,
-            currentChestInches = profileEntity.currentChestInches,
-            currentArmInches = profileEntity.currentArmInches,
-            currentForearmInches = profileEntity.currentForearmInches,
-            currentNeckInches = profileEntity.currentNeckInches,
-            currentThighInches = profileEntity.currentThighInches,
-            currentCalfInches = profileEntity.currentCalfInches,
-            startWaistInches = profileEntity.startWaistInches,
-            startChestInches = profileEntity.startChestInches,
-            startArmInches = profileEntity.startArmInches,
-            startForearmInches = profileEntity.startForearmInches,
-            startNeckInches = profileEntity.startNeckInches,
-            startThighInches = profileEntity.startThighInches,
-            startCalfInches = profileEntity.startCalfInches,
-            autoAdaptEnabled = profileEntity.autoAdaptEnabled,
-            adaptiveCalorieOffset = profileEntity.adaptiveCalorieOffset,
-            splitShakeModeActive = profileEntity.splitShakeModeActive,
-            dailyStepGoal = profileEntity.dailyStepGoal,
-            workoutStartTimeHour = profileEntity.workoutStartTimeHour,
-            workoutStartTimeMinute = profileEntity.workoutStartTimeMinute,
-            currentRollingSplitIndex = profileEntity.currentRollingSplitIndex,
-            lastAdaptationEvalDate = profileEntity.lastAdaptationEvalDate
-        )
+        val profile = profileEntity.toModel()
 
         if (!profile.autoAdaptEnabled && !force) {
             return@withContext AdaptationResult(evaluated = false)
@@ -240,6 +207,40 @@ object AdaptiveCoachEngine {
                     changesApplied.add("Plateau Detected: Daily target auto-boosted by +150 kcal")
                 }
             }
+        }
+
+        // -------------------------------------------------------------------
+        // 1b. WAIST RECOMPOSITION & CORE TIGHTENER AUTO-ACTIVATION
+        // Automatically enable bellyFatRecompMode if 14-day waist expanded >= 0.25" or WHtR > 0.46
+        // -------------------------------------------------------------------
+        val date14d = today.minusDays(14)
+        val waistLogs14dAll = weightLogs.filter {
+            runCatching { !LocalDate.parse(it.date).isBefore(date14d) }.getOrDefault(false)
+        }
+        val waistDelta14dAll = if (waistLogs14dAll.size >= 2) {
+            val sorted = waistLogs14dAll.sortedBy { it.date }
+            sorted.last().waistInches - sorted.first().waistInches
+        } else {
+            0f
+        }
+
+        val recompTrigger = (profile.whtr > 0.46f) || (waistDelta14dAll >= 0.25f)
+        if (!updatedProfile.bellyFatRecompMode && recompTrigger) {
+            updatedProfile = updatedProfile.copy(bellyFatRecompMode = true)
+            database.userProfileDao().upsertUserProfile(updatedProfile)
+
+            val whtrFormatted = String.format("%.3f", profile.whtr)
+            val deltaFormatted = String.format("%.2f", waistDelta14dAll)
+            database.adaptationLogDao().insert(
+                AdaptationLogEntity(
+                    date = todayStr,
+                    category = "WAIST_RECOMP",
+                    title = "Auto-Activated Belly Fat Recomp Mode",
+                    reason = "14-day waist expanded by +$deltaFormatted in (or WHtR $whtrFormatted > 0.46). Engaging core tightener circuit & tightening surplus to +220 kcal.",
+                    parameterChanged = "bellyFatRecompMode: false -> true | Surplus: +330 -> +220 kcal | Protein: 2.15 g/kg | Core Finisher: digpucxFbMo Active"
+                )
+            )
+            changesApplied.add("Waist Recomp Auto-Activated: Surplus tightened to +220 kcal & Core Circuit engaged")
         }
 
         // Case 3: Evening Fullness / Split Shake Trigger

@@ -62,6 +62,13 @@ import com.leanbulk.tracker.data.model.MovementCategory
 import com.leanbulk.tracker.ui.components.OfflineVideosDialog
 import com.leanbulk.tracker.ui.components.YouTubePlayerContainer
 import kotlinx.coroutines.launch
+import androidx.compose.material3.Card
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import com.leanbulk.tracker.ui.theme.CoralRed
+import com.leanbulk.tracker.data.model.BellyFatCircuitCatalog
 import com.leanbulk.tracker.ui.theme.AmberGold
 import com.leanbulk.tracker.ui.theme.DarkBackground
 import com.leanbulk.tracker.ui.theme.DarkSurfaceBorder
@@ -116,6 +123,12 @@ fun WorkoutScreen(
                 onOpenOfflineVideos = { showOfflineVideosDialog = true },
                 onOpenEquipment = { viewModel.openInventoryDialog() }
             )
+        }
+
+        if (state.bellyFatRecompMode) {
+            item {
+                WaistRecompBanner()
+            }
         }
 
         if (state.isShifted || state.isDeloadRecommended) {
@@ -215,6 +228,30 @@ fun WorkoutScreen(
                     viewModel.swapToBarbell(segment, weight)
                 }
             )
+        }
+
+        if (state.finisherSegments.isNotEmpty()) {
+            item {
+                BellyFatFinisherCard(
+                    recompMode = state.bellyFatRecompMode,
+                    variant = state.bellyWorkoutVariant,
+                    selectedDay = state.selectedDay,
+                    finisherSegments = state.finisherSegments,
+                    activeSegmentId = state.activeSegment?.id,
+                    onToggleRecompMode = { viewModel.toggleBellyFatRecompMode(it) },
+                    onSelectVariant = { viewModel.setBellyWorkoutVariant(it) },
+                    onSelectSegment = { segment ->
+                        viewModel.selectSegment(segment)
+                        autoPlaySegmentId = segment.id
+                        coroutineScope.launch {
+                            listState.animateScrollToItem(4)
+                        }
+                    },
+                    onToggleComplete = { segment, isChecked ->
+                        viewModel.toggleSegmentCompletion(segment, isChecked)
+                    }
+                )
+            }
         }
 
         item {
@@ -727,13 +764,42 @@ fun ActiveSegmentPlayerCard(
 
             if (segment.note.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Tip: ${segment.note}",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = AmberGold,
-                        fontSize = 12.sp
+                if (segment.note.contains("Stomach Vacuum Cue")) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CoralRed.copy(alpha = 0.15f))
+                            .border(1.dp, CoralRed.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(
+                                imageVector = Icons.Default.FitnessCenter,
+                                contentDescription = null,
+                                tint = CoralRed,
+                                modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = segment.note,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Tip: ${segment.note}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = AmberGold,
+                            fontSize = 12.sp
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -1412,6 +1478,411 @@ fun AdaptiveWorkoutCoachBanner(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun WaistRecompBanner() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(CoralRed.copy(alpha = 0.12f))
+            .border(1.dp, CoralRed.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(CoralRed.copy(alpha = 0.25f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "🔥", fontSize = 14.sp)
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "WAIST RECOMP ACTIVE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = CoralRed,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.6.sp
+                    )
+                )
+                Text(
+                    text = "+220 kcal Lean Surplus • 95 kcal Core Finisher Burn (Not Eaten Back)",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = TextPrimary,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BellyFatFinisherCard(
+    recompMode: Boolean,
+    variant: String,
+    selectedDay: DayOfWeek,
+    finisherSegments: List<WorkoutSegment>,
+    activeSegmentId: String?,
+    onToggleRecompMode: (Boolean) -> Unit,
+    onSelectVariant: (String) -> Unit,
+    onSelectSegment: (WorkoutSegment) -> Unit,
+    onToggleComplete: (WorkoutSegment, Boolean) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(recompMode) }
+    val resolvedVariant = remember(variant, selectedDay) {
+        BellyFatCircuitCatalog.resolveVariant(variant, selectedDay)
+    }
+    val completedCount = finisherSegments.count { it.isCompleted }
+    val totalCount = finisherSegments.size
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, CoralRed.copy(alpha = 0.45f), RoundedCornerShape(16.dp)),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = DarkSurfaceElevated)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Header Row with Title, Counts, and Collapse Arrow
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(CoralRed.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "🔥", fontSize = 16.sp)
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Belly Fat & Core Tightener",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            )
+                        }
+                        Text(
+                            text = if (resolvedVariant == "PURE_ABS_6_MOVES") "Pure Abs Mode (~6m | 6 Moves)" else "Full Circuit (~9.5m | 8 Moves • ~95 kcal)",
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.sp)
+                        )
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (completedCount == totalCount && totalCount > 0) NeonLime.copy(alpha = 0.15f) else DarkBackground)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "$completedCount/$totalCount",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (completedCount == totalCount && totalCount > 0) NeonLime else TextSecondary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            // Expandable Content
+            AnimatedVisibility(visible = isExpanded) {
+                Column(modifier = Modifier.padding(top = 14.dp)) {
+                    // Recomp Mode Toggle Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(DarkBackground)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Belly Fat Recomp Mode",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            )
+                            Text(
+                                text = if (recompMode) "Surplus tightened to +220 kcal • 95 kcal core burn" else "Off • Standard +330 kcal surplus",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = if (recompMode) CoralRed else TextMuted,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                        Switch(
+                            checked = recompMode,
+                            onCheckedChange = { onToggleRecompMode(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = CoralRed,
+                                checkedTrackColor = CoralRed.copy(alpha = 0.35f),
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = DarkSurfaceElevated
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Variant Selector Chips
+                    Text(
+                        text = "CIRCUIT VARIANT",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = CoralRed,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // AUTO Chip
+                        val isAuto = variant.equals("AUTO", ignoreCase = true)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isAuto) CoralRed.copy(alpha = 0.2f) else DarkBackground)
+                                .border(1.dp, if (isAuto) CoralRed else DarkSurfaceBorder, RoundedCornerShape(8.dp))
+                                .clickable { onSelectVariant("AUTO") }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Auto",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (isAuto) CoralRed else TextSecondary
+                                )
+                                Text(
+                                    text = if (selectedDay == DayOfWeek.TUESDAY || selectedDay == DayOfWeek.THURSDAY) "Pure Abs (Legs)" else "Full 8 Moves",
+                                    fontSize = 9.5.sp,
+                                    color = if (isAuto) TextPrimary else TextMuted,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        // FULL 8 MOVES Chip
+                        val isFull = variant.equals("FULL_8_MOVES", ignoreCase = true)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isFull) CoralRed.copy(alpha = 0.2f) else DarkBackground)
+                                .border(1.dp, if (isFull) CoralRed else DarkSurfaceBorder, RoundedCornerShape(8.dp))
+                                .clickable { onSelectVariant("FULL_8_MOVES") }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Full 8 Moves",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (isFull) CoralRed else TextSecondary
+                                )
+                                Text(
+                                    text = "~9.5m • 95 kcal",
+                                    fontSize = 9.5.sp,
+                                    color = if (isFull) TextPrimary else TextMuted,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        // PURE ABS ONLY Chip
+                        val isPure = variant.equals("PURE_ABS_6_MOVES", ignoreCase = true)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isPure) CoralRed.copy(alpha = 0.2f) else DarkBackground)
+                                .border(1.dp, if (isPure) CoralRed else DarkSurfaceBorder, RoundedCornerShape(8.dp))
+                                .clickable { onSelectVariant("PURE_ABS_6_MOVES") }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Pure Abs Only",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (isPure) CoralRed else TextSecondary
+                                )
+                                Text(
+                                    text = "~6m • Skips Jumps",
+                                    fontSize = 9.5.sp,
+                                    color = if (isPure) TextPrimary else TextMuted,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Finisher Segments List
+                    finisherSegments.forEach { seg ->
+                        val isActive = seg.id == activeSegmentId
+                        FinisherSegmentItem(
+                            segment = seg,
+                            isActive = isActive,
+                            onPlay = { onSelectSegment(seg) },
+                            onToggleComplete = { isChecked -> onToggleComplete(seg, isChecked) }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FinisherSegmentItem(
+    segment: WorkoutSegment,
+    isActive: Boolean,
+    onPlay: () -> Unit,
+    onToggleComplete: (Boolean) -> Unit
+) {
+    val isVacuumCue = segment.note.contains("Stomach Vacuum Cue")
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isActive) CoralRed.copy(alpha = 0.12f) else DarkBackground)
+            .border(
+                1.dp,
+                if (isActive) CoralRed else DarkSurfaceBorder,
+                RoundedCornerShape(12.dp)
+            )
+            .padding(10.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = segment.isCompleted,
+                        onCheckedChange = { onToggleComplete(it) },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = NeonLime,
+                            checkmarkColor = DarkBackground,
+                            uncheckedColor = TextSecondary
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column {
+                        Text(
+                            text = segment.title,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = if (isActive) CoralRed else TextPrimary
+                            )
+                        )
+                        Text(
+                            text = "${segment.formatTimeRange()} • ${segment.formatDuration()}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                }
+
+                // Play Button
+                IconButton(
+                    onClick = onPlay,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(if (isActive) CoralRed else DarkSurfaceElevated)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play",
+                        tint = if (isActive) DarkBackground else CoralRed,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            if (isVacuumCue) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(CoralRed.copy(alpha = 0.12f))
+                        .border(1.dp, CoralRed.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = "Stomach Vacuum Cue: Exhale completely and pull navel inward toward spine to tighten transverse abdominis.",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = AmberGold,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+            } else if (segment.id == "bf_seg_8") {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Tip: Mid-video promo (565s–601s) is auto-skipped directly into bicycle crunches",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = TextMuted,
+                        fontSize = 10.5.sp
+                    )
+                )
             }
         }
     }

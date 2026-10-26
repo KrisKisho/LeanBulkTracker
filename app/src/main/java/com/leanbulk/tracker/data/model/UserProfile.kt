@@ -53,7 +53,10 @@ data class UserProfile(
     val eqHasAdjustableDumbbell: Boolean = false,
     val eqHasBarbell: Boolean = false,
     val eqHasPullUpBar: Boolean = false,
-    val eqHasResistanceBand: Boolean = false
+    val eqHasResistanceBand: Boolean = false,
+    // Belly Fat & Waist Recomposition Mode
+    val bellyFatRecompMode: Boolean = true,
+    val bellyWorkoutVariant: String = "AUTO"
 ) {
     val startingWeightKg: Float get() = startWeightKg
     val targetWeightKg: Float get() = goalWeightKg

@@ -7,6 +7,7 @@ object WorkoutDataSource {
     const val VIDEO_CHEST = "l5yuivJYj5k"
     const val VIDEO_ARMS = "mcuFTrNDLkg"
     const val VIDEO_FULL_BODY = "udbU6ykFFGE"
+    const val VIDEO_BELLY_FAT = "digpucxFbMo"
 
     fun getWeeklyPlans(): Map<DayOfWeek, DayWorkoutPlan> = mapOf(
         DayOfWeek.MONDAY to DayWorkoutPlan(

@@ -51,6 +51,11 @@ import com.leanbulk.tracker.ui.components.BodyDimensionForecastCard
 import com.leanbulk.tracker.ui.components.DataBackupCard
 import com.leanbulk.tracker.ui.components.SmartCoachingCard
 import com.leanbulk.tracker.ui.components.WeightTrajectoryChart
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import com.leanbulk.tracker.ui.theme.CoralRed
 import com.leanbulk.tracker.ui.theme.AmberGold
 import com.leanbulk.tracker.ui.theme.DarkBackground
 import com.leanbulk.tracker.ui.theme.DarkSurfaceBorder
@@ -184,6 +189,71 @@ fun ProgressScreen(
                 onRunAdaptationCheck = { viewModel.runAdaptationCheckNow() },
                 isEvaluating = state.isEvaluatingAdaptation
             )
+        }
+
+        item {
+            // Belly Fat Recomp Mode Toggle Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(
+                        1.dp,
+                        if (state.userProfile.bellyFatRecompMode) CoralRed.copy(alpha = 0.5f) else DarkSurfaceBorder,
+                        RoundedCornerShape(16.dp)
+                    ),
+                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = DarkSurfaceElevated)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (state.userProfile.bellyFatRecompMode) CoralRed.copy(alpha = 0.2f) else DarkBackground),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "🔥", fontSize = 16.sp)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Belly Fat Recomp Mode",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            )
+                            Text(
+                                text = if (state.userProfile.bellyFatRecompMode)
+                                    "Active: +220 kcal surplus • Core circuit finisher (digpucxFbMo)"
+                                else
+                                    "Tap to tighten surplus to +220 kcal & engage core circuit",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = if (state.userProfile.bellyFatRecompMode) CoralRed else TextSecondary,
+                                    fontSize = 11.5.sp
+                                )
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = state.userProfile.bellyFatRecompMode,
+                        onCheckedChange = { viewModel.toggleBellyFatRecompMode(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = CoralRed,
+                            checkedTrackColor = CoralRed.copy(alpha = 0.35f),
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = DarkSurfaceElevated
+                        )
+                    )
+                }
+            }
         }
 
         item {
